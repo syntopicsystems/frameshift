@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First Things First — FrameShift P22</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() { try { var r = localStorage.getItem(this.STORAGE_KEY); return r ? JSON.parse(r) : null; } catch(e) { return null; } },
+      save: function(d) { try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(d)); } catch(e) {} },
+      saveSession: function(pid, ts, tm, xs, xm, m) {
+        var d = this.load() || {programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};
+        if (!d.programs) d.programs = {};
+        if (!d.programs[pid]) d.programs[pid] = {sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};
+        var p = d.programs[pid];
+        p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});
+        if (ts !== null && (p.bestScore.train === null || ts > p.bestScore.train)) p.bestScore.train = ts;
+        if (xs !== null && (p.bestScore.test === null || xs > p.bestScore.test)) p.bestScore.test = xs;
+        if (m) p.mastery = true;
+        p.lastPlayed = new Date().toISOString();
+        d.totalSessions = (d.totalSessions||0) + 1;
+        var today = new Date().toISOString().slice(0,10);
+        if (!d.streak) d.streak = {current:0,best:0,lastDate:null};
+        if (d.streak.lastDate !== today) {
+          if (d.streak.lastDate) { var diff = Math.floor((new Date(today) - new Date(d.streak.lastDate)) / 86400000); d.streak.current = diff === 1 ? d.streak.current + 1 : 1; } else { d.streak.current = 1; }
+        }
+        d.streak.lastDate = today;
+        if (d.streak.current > d.streak.best) d.streak.best = d.streak.current;
+        this.save(d);
+      }
+    };
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    body { background: linear-gradient(135deg, #2d1b00 0%, #5c3d1a 30%, #8b6914 60%, #c4a35a 100%); min-height: 100vh; }
+    .glass { background: rgba(255,255,255,0.12); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); }
+    .glass-bright { background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); }
+    .card-shadow { box-shadow: 2px 4px 16px rgba(0,0,0,0.25); }
+    @keyframes fadeIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-4deg)} 75%{transform:rotate(4deg)} }
+    .anim-fadein { animation: fadeIn 0.4s ease-out both; }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.15); backdrop-filter: blur(8px);
+      padding: 6px 16px; border-radius: 20px; text-decoration: none;
+      font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700;
+      color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.2);
+      transition: all 0.2s;
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.25); color: #fff; }
+    .timeline-dot { width: 12px; height: 12px; border-radius: 50%; background: #fbbf24; border: 2px solid #92400e; }
+    .timeline-line { height: 3px; background: linear-gradient(90deg, #fbbf24, #f59e0b); flex: 1; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      try {
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const now = audioCtx.currentTime;
+        if (type === "correct") {
+          [440, 554, 659].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.15, now+i*0.1); g.gain.exponentialRampToValueAtTime(0.001, now+i*0.1+0.3); o.connect(g); g.connect(audioCtx.destination); o.start(now+i*0.1); o.stop(now+i*0.1+0.3); });
+        } else if (type === "incorrect") {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "sine"; o.frequency.setValueAtTime(330, now); o.frequency.linearRampToValueAtTime(220, now+0.3); g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.3); o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now+0.35);
+        } else if (type === "neutral") {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "sine"; o.frequency.value = 440; g.gain.setValueAtTime(0.1, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.2); o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now+0.25);
+        } else if (type === "complete") {
+          [523, 587, 659, 784, 880].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.15, now+i*0.12); g.gain.exponentialRampToValueAtTime(0.001, now+i*0.12+0.4); o.connect(g); g.connect(audioCtx.destination); o.start(now+i*0.12); o.stop(now+i*0.12+0.4); });
+        }
+      } catch(e) {}
+    }
+
+    function shuffle(a) { const b=[...a]; for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];} return b; }
+
+    // Sequences: A → B → C (temporal order)
+    const SEQUENCES = [
+      { A: { emoji: "🐛", label: "Caterpillar" }, B: { emoji: "🟤", label: "Cocoon" }, C: { emoji: "🦋", label: "Butterfly" } },
+      { A: { emoji: "🥚", label: "Egg" }, B: { emoji: "🐣", label: "Chick" }, C: { emoji: "🐔", label: "Chicken" } },
+      { A: { emoji: "🌱", label: "Seed" }, B: { emoji: "🌿", label: "Sprout" }, C: { emoji: "🌻", label: "Sunflower" } },
+      { A: { emoji: "☁️", label: "Cloud" }, B: { emoji: "🌧️", label: "Rain" }, C: { emoji: "🌈", label: "Rainbow" } },
+      { A: { emoji: "🌅", label: "Sunrise" }, B: { emoji: "☀️", label: "Noon" }, C: { emoji: "🌙", label: "Night" } },
+      { A: { emoji: "🧊", label: "Ice" }, B: { emoji: "💧", label: "Water" }, C: { emoji: "♨️", label: "Steam" } },
+    ];
+
+    // Novel sequences for test
+    const TEST_SEQUENCES = [
+      { A: { emoji: "🪨", label: "Rock" }, B: { emoji: "⚒️", label: "Carved Stone" }, C: { emoji: "🏛️", label: "Building" } },
+      { A: { emoji: "🌾", label: "Wheat" }, B: { emoji: "🫓", label: "Dough" }, C: { emoji: "🍞", label: "Bread" } },
+      { A: { emoji: "🪵", label: "Log" }, B: { emoji: "🪚", label: "Planks" }, C: { emoji: "🪑", label: "Chair" } },
+      { A: { emoji: "🐑", label: "Sheep" }, B: { emoji: "🧶", label: "Yarn" }, C: { emoji: "🧣", label: "Scarf" } },
+    ];
+
+    const TRAIN_AB = 6; // A-B trials (find first)
+    const TRAIN_BC = 6; // B-C trials (find first)
+    const TRAIN_TOTAL = TRAIN_AB + TRAIN_BC;
+    const TRAIN_THRESHOLD = 9; // 75%
+    const TEST_AC = 4; // Transitive: A-C (never trained together)
+    const TEST_YZ = 4; // Match sequence to order cards
+    const TEST_TOTAL = TEST_AC + TEST_YZ;
+
+    function SeqCard({ emoji, label, onClick, disabled, highlight }) {
+      return (
+        <button onClick={onClick} disabled={disabled}
+          className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all duration-200 cursor-pointer
+            ${highlight === "correct" ? "ring-4 ring-green-400 bg-green-50 anim-pop" : ""}
+            ${highlight === "incorrect" ? "ring-4 ring-red-300 bg-red-50 anim-wiggle" : ""}
+            ${highlight === "neutral" ? "ring-4 ring-amber-300 bg-amber-50" : ""}
+            ${!highlight ? "glass-bright hover:scale-105 hover:shadow-lg" : "glass-bright"}
+          `}
+          style={{ minWidth: 120, minHeight: 120 }}>
+          <span style={{ fontSize: 48 }}>{emoji}</span>
+          <span className="nunito text-sm font-bold text-gray-700 mt-1 text-center">{label}</span>
+        </button>
+      );
+    }
+
+    function TimelineDisplay({ items }) {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          {items.map((item, i) => (
+            <React.Fragment key={i}>
+              <div className="flex flex-col items-center">
+                <span style={{ fontSize: 32 }}>{item.emoji}</span>
+                <span className="nunito text-xs text-white/70 font-bold">{item.label}</span>
+              </div>
+              {i < items.length - 1 && (
+                <div className="flex items-center mx-1">
+                  <div className="timeline-line" style={{ width: 40 }}></div>
+                  <span className="text-amber-300 text-lg">→</span>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    }
+
+    function App() {
+      const [phase, setPhase] = useState("intro");
+      const [trials, setTrials] = useState([]);
+      const [trialIdx, setTrialIdx] = useState(0);
+      const [trainScore, setTrainScore] = useState(0);
+      const [testScore, setTestScore] = useState(0);
+      const [feedback, setFeedback] = useState(null);
+      const [highlights, setHighlights] = useState({});
+
+      const buildTrainTrials = useCallback(() => {
+        const seqs = shuffle(SEQUENCES);
+        const ab = seqs.slice(0, TRAIN_AB).map(s => ({
+          options: [s.A, s.B], correct: 0, // A is first
+          question: "Which comes FIRST?",
+          seqLabel: `${s.A.label} → ${s.B.label}`,
+          explanation: `${s.A.label} comes before ${s.B.label}`,
+          phase: "train"
+        }));
+        const bc = seqs.slice(0, TRAIN_BC).map(s => ({
+          options: [s.B, s.C], correct: 0, // B is first
+          question: "Which comes FIRST?",
+          seqLabel: `${s.B.label} → ${s.C.label}`,
+          explanation: `${s.B.label} comes before ${s.C.label}`,
+          phase: "train"
+        }));
+        return shuffle([...ab, ...bc]);
+      }, []);
+
+      const buildTestTrials = useCallback(() => {
+        const seqs = shuffle(TEST_SEQUENCES);
+        // A-C transitive: show A and C, ask which first (never trained together)
+        const ac = seqs.slice(0, TEST_AC).map(s => ({
+          options: [s.A, s.C], correct: 0,
+          question: "Which comes FIRST?",
+          phase: "test_ac"
+        }));
+        // Y-Z: show full sequence, then present shuffled items, ask to identify order
+        const yz = seqs.slice(0, TEST_YZ).map(s => ({
+          sequence: [s.A, s.B, s.C],
+          shuffledOptions: shuffle([s.A, s.B, s.C]),
+          question: "Which of these is FIRST in the sequence?",
+          correctEmoji: s.A.emoji,
+          phase: "test_yz"
+        }));
+        return [...shuffle(ac), ...shuffle(yz)];
+      }, []);
+
+      const startTraining = useCallback(() => {
+        setTrials(buildTrainTrials());
+        setTrialIdx(0); setTrainScore(0); setTestScore(0);
+        setFeedback(null); setHighlights({});
+        setPhase("train");
+      }, [buildTrainTrials]);
+
+      const startTest = useCallback(() => {
+        setTrials(buildTestTrials());
+        setTrialIdx(0); setTestScore(0);
+        setFeedback(null); setHighlights({});
+        setPhase("test");
+      }, [buildTestTrials]);
+
+      const trial = trials[trialIdx] || null;
+      const [flipped, setFlipped] = useState(false);
+      useEffect(() => { setFlipped(Math.random() > 0.5); }, [trialIdx, phase]);
+
+      const advance = useCallback((correct, isTrain) => {
+        setTimeout(() => {
+          setFeedback(null); setHighlights({});
+          if (trialIdx + 1 < trials.length) {
+            setTrialIdx(i => i + 1);
+          } else {
+            if (phase === "train") {
+              const ts = trainScore + (correct ? 1 : 0);
+              if (ts >= TRAIN_THRESHOLD) {
+                startTest();
+              } else {
+                if (window.FrameShift) window.FrameShift.saveSession("p22", ts, TRAIN_TOTAL, null, null, false);
+                setTrainScore(ts);
+                setPhase("done");
+              }
+            } else {
+              const xs = testScore + (correct ? 1 : 0);
+              playSound("complete");
+              if (window.FrameShift) window.FrameShift.saveSession("p22", trainScore, TRAIN_TOTAL, xs, TEST_TOTAL, xs >= Math.ceil(TEST_TOTAL * 0.75));
+              setTestScore(xs);
+              setPhase("done");
+            }
+          }
+        }, isTrain ? 1800 : 1200);
+      }, [trialIdx, trials, phase, trainScore, testScore, startTest]);
+
+      const handleChoice = (chosenIdx) => {
+        if (feedback) return;
+        const isTrain = phase === "train";
+        const correct = chosenIdx === trial.correct;
+        if (correct) {
+          playSound(isTrain ? "correct" : "neutral");
+          setHighlights({ [chosenIdx]: isTrain ? "correct" : "neutral" });
+          if (isTrain) setTrainScore(s => s + 1); else setTestScore(s => s + 1);
+        } else {
+          playSound(isTrain ? "incorrect" : "neutral");
+          setHighlights({ [chosenIdx]: isTrain ? "incorrect" : "neutral", ...(isTrain ? { [trial.correct]: "correct" } : {}) });
+        }
+        setFeedback({ type: correct ? "correct" : "incorrect", isTrain, explanation: trial.explanation });
+        advance(correct, isTrain);
+      };
+
+      const handleYZChoice = (emoji) => {
+        if (feedback) return;
+        const correct = emoji === trial.correctEmoji;
+        playSound("neutral");
+        if (correct) setTestScore(s => s + 1);
+        setFeedback({ type: correct ? "correct" : "incorrect", isTrain: false });
+        advance(correct, false);
+      };
+
+      // ── INTRO ──
+      if (phase === "intro") {
+        return (
+          <div className="min-h-screen flex items-center justify-center px-4" style={{ zIndex: 1 }}>
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">⏳</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">First Things First</h1>
+              <p className="nunito text-white/80 mb-4 leading-relaxed">
+                Things happen in order — one thing comes before another. Can you figure out what comes first?
+              </p>
+              <div className="mb-6">
+                <TimelineDisplay items={[
+                  { emoji: "🐛", label: "First" }, { emoji: "🟤", label: "Then" }, { emoji: "🦋", label: "Last" }
+                ]} />
+              </div>
+              <button onClick={startTraining}
+                className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white transition-all hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
+                Start! ⏳
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ── DONE ──
+      if (phase === "done") {
+        const passed = trainScore >= TRAIN_THRESHOLD;
+        const mastered = testScore >= Math.ceil(TEST_TOTAL * 0.75);
+        return (
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed ? (mastered ? "🌟" : "⭐") : "⏳"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">
+                {passed ? (mastered ? "Sequence Master!" : "Well Done!") : "Keep Trying!"}
+              </h2>
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3">
+                  <p className="nunito text-sm text-white/70">Training</p>
+                  <p className="fredoka text-xl text-white font-bold">{trainScore} / {TRAIN_TOTAL}</p>
+                </div>
+                {passed && (
+                  <div className="glass rounded-xl p-3">
+                    <p className="nunito text-sm text-white/70">Test</p>
+                    <p className="fredoka text-xl text-white font-bold">{testScore} / {TEST_TOTAL}</p>
+                  </div>
+                )}
+                {!passed && <p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_TOTAL} to unlock the test!</p>}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
+                  Play Again ⏳
+                </button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-amber-200 hover:text-white hover:bg-white/10 transition-all border border-amber-300/30">
+                  ← Back to FrameShift
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (!trial) return null;
+
+      // ── Y-Z TRIAL (sequence matching) ──
+      if (trial.phase === "test_yz") {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1">
+                <span className="nunito text-xs text-white/60 font-bold">Test — Sequence Order</span>
+                <span className="nunito text-xs text-white/60 font-bold">{trialIdx + 1} / {trials.length}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10">
+                <div className="h-2 rounded-full" style={{ width: (trialIdx/trials.length*100)+"%", background: "linear-gradient(90deg, #fbbf24, #d97706)" }}></div>
+              </div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <p className="nunito text-white/90 font-bold text-center mb-3">Here's a sequence:</p>
+              <div className="mb-4"><TimelineDisplay items={trial.sequence} /></div>
+              <p className="fredoka text-lg text-white text-center mb-4">{trial.question}</p>
+              <div className="flex justify-center gap-3">
+                {trial.shuffledOptions.map((opt, i) => (
+                  <SeqCard key={i} emoji={opt.emoji} label={opt.label}
+                    onClick={() => handleYZChoice(opt.emoji)} disabled={!!feedback} />
+                ))}
+              </div>
+              {feedback && <p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      // ── STANDARD 2-CHOICE TRIAL ──
+      const opts = flipped ? [...trial.options].reverse() : trial.options;
+      const correctIdx = flipped ? (trial.correct === 0 ? 1 : 0) : trial.correct;
+      const isTrain = phase === "train";
+      const leftH = highlights[flipped ? 1 : 0];
+      const rightH = highlights[flipped ? 0 : 1];
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4">
+            <div className="flex justify-between mb-1">
+              <span className="nunito text-xs text-white/60 font-bold">{isTrain ? "Training" : "Test"} — Which is First?</span>
+              <span className="nunito text-xs text-white/60 font-bold">{trialIdx + 1} / {trials.length}</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/10">
+              <div className="h-2 rounded-full" style={{ width: (trialIdx/trials.length*100)+"%", background: isTrain ? "linear-gradient(90deg, #d97706, #f59e0b)" : "linear-gradient(90deg, #fbbf24, #d97706)" }}></div>
+            </div>
+          </div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <h2 className="fredoka text-xl text-white text-center mb-4">{trial.question}</h2>
+            <div className="flex justify-center gap-4">
+              <SeqCard emoji={opts[0].emoji} label={opts[0].label}
+                onClick={() => handleChoice(flipped ? 1 : 0)} disabled={!!feedback} highlight={leftH} />
+              <SeqCard emoji={opts[1].emoji} label={opts[1].label}
+                onClick={() => handleChoice(flipped ? 0 : 1)} disabled={!!feedback} highlight={rightH} />
+            </div>
+            {feedback && isTrain && (
+              <div className="mt-4 text-center anim-fadein">
+                {feedback.type === "correct"
+                  ? <p className="nunito text-sm text-green-300 font-bold">✅ Correct! {feedback.explanation}</p>
+                  : <p className="nunito text-sm text-amber-300 font-bold">Not quite — {feedback.explanation}</p>
+                }
+              </div>
+            )}
+            {feedback && !isTrain && <p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+          <div className="mt-4 glass rounded-xl px-4 py-2">
+            <span className="nunito text-sm text-white/70 font-bold">Score: {isTrain ? trainScore : testScore} / {trialIdx + (feedback ? 1 : 0)}</span>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

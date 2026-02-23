@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spot the Difference — FrameShift P24</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() { try { var r = localStorage.getItem(this.STORAGE_KEY); return r ? JSON.parse(r) : null; } catch(e) { return null; } },
+      save: function(d) { try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(d)); } catch(e) {} },
+      saveSession: function(pid, ts, tm, xs, xm, m) {
+        var d = this.load() || {programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};
+        if (!d.programs) d.programs = {};
+        if (!d.programs[pid]) d.programs[pid] = {sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};
+        var p = d.programs[pid]; p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});
+        if (ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train)) p.bestScore.train=ts;
+        if (xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test)) p.bestScore.test=xs;
+        if (m) p.mastery=true; p.lastPlayed=new Date().toISOString();
+        d.totalSessions=(d.totalSessions||0)+1; var today=new Date().toISOString().slice(0,10);
+        if (!d.streak) d.streak={current:0,best:0,lastDate:null};
+        if (d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}
+        d.streak.lastDate=today;if(d.streak.current>d.streak.best)d.streak.best=d.streak.current;this.save(d);
+      }
+    };
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    .fredoka{font-family:'Fredoka',sans-serif;} .nunito{font-family:'Nunito',sans-serif;}
+    body{background:linear-gradient(135deg,#064e3b 0%,#065f46 30%,#059669 60%,#34d399 85%,#6ee7b7 100%);min-height:100vh;}
+    .glass{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.15);}
+    .glass-bright{background:rgba(255,255,255,0.9);backdrop-filter:blur(12px);}
+    .card-shadow{box-shadow:2px 4px 16px rgba(0,0,0,0.25);}
+    .caregiver-panel{border:2px dashed #fbbf24;background:rgba(251,191,36,0.1);}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    .anim-fadein{animation:fadeIn 0.4s ease-out both;} .anim-pop{animation:pop 0.3s ease-in-out;}
+    .frameshift-back{position:fixed;top:12px;left:12px;z-index:50;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);padding:6px 16px;border-radius:20px;text-decoration:none;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;}
+    .frameshift-back:hover{background:rgba(255,255,255,0.25);color:#fff;}
+    .split-line{width:3px;background:linear-gradient(180deg,#10b981,#059669);border-radius:2px;min-height:80px;}
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const {useState,useCallback}=React;
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    function playSound(t){try{if(audioCtx.state==="suspended")audioCtx.resume();const n=audioCtx.currentTime;if(t==="correct"){[440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.1);o.stop(n+i*0.1+0.3);});}else if(t==="incorrect"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.35);}else if(t==="neutral"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.25);}else if(t==="complete"){[523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.12);o.stop(n+i*0.12+0.4);});}}catch(e){}}
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    // Similar-looking pairs with key differences
+    const PAIRS = [
+      {A:{emoji:"🐕",label:"Dog"},B:{emoji:"🐺",label:"Wolf"},differences:["Dogs are pets, wolves are wild","Dogs bark at you friendly, wolves howl","Dogs live in houses, wolves live in forests"],hint:"Think about where they live"},
+      {A:{emoji:"🍎",label:"Apple"},B:{emoji:"🍐",label:"Pear"},differences:["Apples are round, pears have a neck shape","Apples can be red, pears are usually green/yellow","Apples are crunchy, pears are softer"],hint:"Think about their shape"},
+      {A:{emoji:"🚗",label:"Car"},B:{emoji:"🚌",label:"Bus"},differences:["Cars are small, buses are big","Cars carry a few people, buses carry many","You drive a car yourself, a bus has a driver for everyone"],hint:"Think about size"},
+      {A:{emoji:"✏️",label:"Pencil"},B:{emoji:"🖊️",label:"Pen"},differences:["Pencil marks can be erased, pen marks can't","Pencils use graphite, pens use ink","Pencils need sharpening, pens don't"],hint:"Think about erasing"},
+      {A:{emoji:"🌧️",label:"Rain"},B:{emoji:"❄️",label:"Snow"},differences:["Rain is liquid water, snow is frozen","Rain makes puddles, snow makes piles","Rain is warm weather, snow is cold weather"],hint:"Think about temperature"},
+      {A:{emoji:"🎸",label:"Guitar"},B:{emoji:"🎻",label:"Violin"},differences:["Guitar is strummed, violin uses a bow","Guitar is bigger, violin is smaller","Guitar sounds rocky, violin sounds classical"],hint:"Think about how you play them"},
+      {A:{emoji:"🦁",label:"Lion"},B:{emoji:"🐯",label:"Tiger"},differences:["Lions have manes, tigers have stripes","Lions live in Africa, tigers in Asia","Lions live in groups, tigers live alone"],hint:"Think about their fur"},
+      {A:{emoji:"📚",label:"Book"},B:{emoji:"📱",label:"Phone"},differences:["Books have paper pages, phones have screens","Books need light to read, phones make their own light","Books don't need batteries, phones do"],hint:"Think about how they work"},
+    ];
+
+    const TEST_PAIRS = [
+      {A:{emoji:"🌻",label:"Sunflower"},B:{emoji:"🌹",label:"Rose"},differences:["Sunflowers are yellow, roses are red","Sunflowers face the sun, roses don't","Roses have thorns, sunflowers don't"],hint:"color and thorns"},
+      {A:{emoji:"🏠",label:"House"},B:{emoji:"🏢",label:"Building"},differences:["Houses are for one family, buildings for many","Houses are short, buildings are tall","Houses have yards, buildings don't"],hint:"size and families"},
+      {A:{emoji:"🐸",label:"Frog"},B:{emoji:"🦎",label:"Lizard"},differences:["Frogs are smooth, lizards are scaly","Frogs hop, lizards crawl","Frogs like water, lizards like sun"],hint:"skin texture"},
+      {A:{emoji:"⚽",label:"Soccer Ball"},B:{emoji:"🏀",label:"Basketball"},differences:["Soccer balls are kicked, basketballs are thrown","Soccer is on grass, basketball on court","Soccer balls are black-white, basketballs are orange"],hint:"how you play"},
+      {A:{emoji:"🧁",label:"Cupcake"},B:{emoji:"🍩",label:"Donut"},differences:["Cupcakes have frosting on top, donuts have a hole","Cupcakes are baked, donuts are fried","Cupcakes stand up, donuts lay flat"],hint:"shape and hole"},
+      {A:{emoji:"🌅",label:"Sunset"},B:{emoji:"🌄",label:"Sunrise"},differences:["Sunset ends the day, sunrise starts it","Sunset means bedtime, sunrise means wake up","Sunset goes down, sunrise comes up"],hint:"time of day"},
+    ];
+
+    const TRAIN_COUNT=8; const TRAIN_THRESHOLD=6;
+    const TEST_MC_COUNT=6; const TEST_H2H_COUNT=4; const TEST_TOTAL=TEST_MC_COUNT+TEST_H2H_COUNT;
+
+    function App(){
+      const[phase,setPhase]=useState("intro");
+      const[trials,setTrials]=useState([]);
+      const[trialIdx,setTrialIdx]=useState(0);
+      const[trainScore,setTrainScore]=useState(0);
+      const[testScore,setTestScore]=useState(0);
+      const[feedback,setFeedback]=useState(null);
+      const[response,setResponse]=useState("");
+      const[h2hCards,setH2hCards]=useState(0);
+
+      const startTraining=useCallback(()=>{
+        const t=shuffle(PAIRS).slice(0,TRAIN_COUNT).map(p=>({...p,type:"train",phase:"train"}));
+        setTrials(t);setTrialIdx(0);setTrainScore(0);setTestScore(0);setFeedback(null);setResponse("");setH2hCards(0);setPhase("train");
+      },[]);
+
+      const startTest=useCallback(()=>{
+        const mc=shuffle(TEST_PAIRS).slice(0,TEST_MC_COUNT).map(p=>{
+          const dist=shuffle(TEST_PAIRS.filter(x=>x.A.label!==p.A.label)).slice(0,2);
+          const opts=shuffle([p,...dist]);
+          return{...p,options:opts,correctIdx:opts.indexOf(p),type:"test_mc",phase:"test"};
+        });
+        const h2h=shuffle(TEST_PAIRS).slice(0,TEST_H2H_COUNT).map(p=>({...p,type:"test_h2h",phase:"test"}));
+        setTrials([...mc,...h2h]);setTrialIdx(0);setTestScore(0);setFeedback(null);setResponse("");setH2hCards(0);setPhase("test");
+      },[]);
+
+      const trial=trials[trialIdx]||null;
+
+      const advance=useCallback((correct)=>{
+        if(trialIdx+1<trials.length){
+          setTimeout(()=>{setTrialIdx(i=>i+1);setFeedback(null);setResponse("");},1200);
+        }else{
+          setTimeout(()=>{
+            if(phase==="train"){
+              const ts=trainScore+(correct?1:0);
+              if(ts>=TRAIN_THRESHOLD){startTest();}
+              else{if(window.FrameShift)window.FrameShift.saveSession("p24",ts,TRAIN_COUNT,null,null,false);setTrainScore(ts);setPhase("done");}
+            }else{
+              const xs=testScore+(correct?1:0);playSound("complete");
+              if(window.FrameShift)window.FrameShift.saveSession("p24",trainScore,TRAIN_COUNT,xs,TEST_TOTAL,xs>=Math.ceil(TEST_TOTAL*0.75));
+              setTestScore(xs);setPhase("done");
+            }
+            setFeedback(null);setResponse("");
+          },1200);
+        }
+      },[trialIdx,trials,phase,trainScore,testScore,startTest]);
+
+      const handleCaregiverScore=(level)=>{
+        const correct=level==="correct";
+        if(correct){playSound("correct");if(phase==="train")setTrainScore(s=>s+1);else{setTestScore(s=>s+1);setH2hCards(c=>c+1);}}
+        else if(level==="partial"){playSound("neutral");if(phase==="train")setTrainScore(s=>s+0.5);else setTestScore(s=>s+0.5);}
+        else{playSound("incorrect");}
+        setFeedback({type:level});advance(correct);
+      };
+
+      const handleMCChoice=(idx)=>{
+        if(feedback)return;
+        const correct=idx===trial.correctIdx;
+        playSound("neutral");if(correct)setTestScore(s=>s+1);
+        setFeedback({type:correct?"correct":"incorrect"});advance(correct);
+      };
+
+      if(phase==="intro"){
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">🔍</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">Spot the Difference</h1>
+              <p className="nunito text-white/80 mb-4">Things can look alike but be different. Can you find what makes them different?</p>
+              <div className="caregiver-panel rounded-xl p-3 mb-4">
+                <p className="nunito text-sm text-yellow-100 font-bold">🧑‍🏫 Caregiver needed for scoring</p>
+              </div>
+              <button onClick={startTraining} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#059669,#047857)"}}>
+                Let's Find Out! 🔍
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if(phase==="done"){
+        const passed=trainScore>=TRAIN_THRESHOLD;const mastered=testScore>=Math.ceil(TEST_TOTAL*0.75);
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🔍"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Difference Detective!":"Nice Work!"):"Keep Looking!"}</h2>
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore}/{TRAIN_COUNT}</p></div>
+                {passed&&<div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{Math.round(testScore)}/{TEST_TOTAL}</p></div>}
+                {!passed&&<p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} to unlock the test!</p>}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#059669,#047857)"}}>Play Again 🔍</button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-emerald-200 hover:text-white hover:bg-white/10 transition-all border border-emerald-300/30">← Back to FrameShift</a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if(!trial)return null;
+
+      // TRAIN: describe differences
+      if(trial.type==="train"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — What's Different?</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#10b981,#059669)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-xl text-white text-center mb-4">What's different about these two?</h2>
+              <div className="flex justify-center items-center gap-4 mb-4">
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:48}}>{trial.A.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.A.label}</p>
+                </div>
+                <div className="split-line"></div>
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:48}}>{trial.B.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.B.label}</p>
+                </div>
+              </div>
+              <p className="nunito text-sm text-white/60 text-center mb-2">Hint: {trial.hint}</p>
+              {!feedback&&(
+                <div className="caregiver-panel rounded-xl p-4 mt-3">
+                  <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Ask the child: "How are these different?" Then score:</p>
+                  <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito"/>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={()=>handleCaregiverScore("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold hover:bg-green-600">✅ Named a Difference</button>
+                    <button onClick={()=>handleCaregiverScore("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold hover:bg-yellow-600">🟡 Vague</button>
+                    <button onClick={()=>handleCaregiverScore("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold hover:bg-red-600">❌ Couldn't</button>
+                  </div>
+                </div>
+              )}
+              {feedback&&(
+                <div className="mt-4 text-center anim-fadein">
+                  <p className="nunito text-sm text-white/80">Some differences: {trial.differences[0]}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // TEST MC
+      if(trial.type==="test_mc"){
+        const diffDesc=trial.differences[Math.floor(Math.random()*trial.differences.length)];
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Match the Difference</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#6ee7b7,#10b981)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-lg text-white text-center mb-4">Which pair has this difference?</h2>
+              <p className="nunito text-sm text-emerald-200 text-center mb-4 font-bold">"{diffDesc}"</p>
+              <div className="space-y-3">
+                {trial.options.map((opt,i)=>(
+                  <button key={i} onClick={()=>handleMCChoice(i)} disabled={!!feedback}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${!feedback?"glass-bright hover:scale-102 cursor-pointer":"glass-bright opacity-80"}`}>
+                    <span style={{fontSize:28}}>{opt.A.emoji}</span>
+                    <span className="nunito text-xs text-gray-400">&</span>
+                    <span style={{fontSize:28}}>{opt.B.emoji}</span>
+                    <span className="nunito text-sm text-gray-600 ml-2">{opt.A.label} & {opt.B.label}</span>
+                  </button>
+                ))}
+              </div>
+              {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      // TEST H2H
+      if(trial.type==="test_h2h"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Head to Head!</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#6ee7b7,#10b981)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-lg text-white text-center mb-2">🃏 Head to Head!</h2>
+              <p className="nunito text-sm text-white/70 text-center mb-4">Name a difference to win the cards!</p>
+              <div className="flex justify-center items-center gap-4 mb-4">
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:44}}>{trial.A.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.A.label}</p>
+                </div>
+                <span className="fredoka text-xl text-yellow-300">VS</span>
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:44}}>{trial.B.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.B.label}</p>
+                </div>
+              </div>
+              {!feedback&&(
+                <div className="caregiver-panel rounded-xl p-4">
+                  <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Did the child name a difference?</p>
+                  <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito"/>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={()=>handleCaregiverScore("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold">✅ Won cards!</button>
+                    <button onClick={()=>handleCaregiverScore("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold">🟡 Vague</button>
+                    <button onClick={()=>handleCaregiverScore("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold">❌ Couldn't</button>
+                  </div>
+                </div>
+              )}
+              {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+              <div className="mt-3 text-center"><span className="nunito text-sm text-emerald-300 font-bold">Your cards: {h2hCards} 🃏</span></div>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

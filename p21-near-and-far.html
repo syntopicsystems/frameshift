@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Near &amp; Far — FrameShift P21</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load() || {programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};
+        if (!data.programs) data.programs = {};
+        if (!data.programs[programId]) data.programs[programId] = {sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};
+        var prog = data.programs[programId];
+        var session = {date:new Date().toISOString(),trainScore:trainScore,trainMax:trainMax,testScore:testScore||null,testMax:testMax||null};
+        prog.sessions.push(session);
+        if (trainScore !== null && (prog.bestScore.train === null || trainScore > prog.bestScore.train)) prog.bestScore.train = trainScore;
+        if (testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) prog.bestScore.test = testScore;
+        if (mastery) prog.mastery = true;
+        prog.lastPlayed = new Date().toISOString();
+        data.totalSessions = (data.totalSessions||0) + 1;
+        var today = new Date().toISOString().slice(0,10);
+        if (!data.streak) data.streak = {current:0,best:0,lastDate:null};
+        if (data.streak.lastDate === today) { /* same day */ }
+        else if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate), now = new Date(today);
+          var diff = Math.floor((now - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+      }
+    };
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    body { background: linear-gradient(180deg, #0a1628 0%, #1a2a4a 30%, #2d4a6f 60%, #4a7a9b 85%, #7ab5c5 100%); min-height: 100vh; overflow-x: hidden; }
+    .card-shadow { box-shadow: 2px 4px 16px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15); }
+    .glass { background: rgba(255,255,255,0.12); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); }
+    .glass-bright { background: rgba(255,255,255,0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    @keyframes fadeIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-4deg)} 75%{transform:rotate(4deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    @keyframes twinkle { 0%,100%{opacity:0.3} 50%{opacity:1} }
+    .anim-fadein { animation: fadeIn 0.4s ease-out both; }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.15); backdrop-filter: blur(8px);
+      padding: 6px 16px; border-radius: 20px; text-decoration: none;
+      font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700;
+      color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.2);
+      transition: all 0.2s;
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.25); color: #fff; }
+    .star { position: absolute; width: 2px; height: 2px; background: #fff; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── SOUND ENGINE ──
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      try {
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const now = audioCtx.currentTime;
+        if (type === "correct") {
+          [440, 554, 659].forEach((f, i) => {
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = "sine"; o.frequency.value = f;
+            g.gain.setValueAtTime(0.15, now + i*0.1);
+            g.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.3);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(now + i*0.1); o.stop(now + i*0.1 + 0.3);
+          });
+        } else if (type === "incorrect") {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "sine"; o.frequency.setValueAtTime(330, now);
+          o.frequency.linearRampToValueAtTime(220, now + 0.3);
+          g.gain.setValueAtTime(0.12, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(now); o.stop(now + 0.35);
+        } else if (type === "neutral") {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "sine"; o.frequency.value = 440;
+          g.gain.setValueAtTime(0.1, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(now); o.stop(now + 0.25);
+        } else if (type === "complete") {
+          [523, 587, 659, 784, 880].forEach((f, i) => {
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = "sine"; o.frequency.value = f;
+            g.gain.setValueAtTime(0.15, now + i*0.12);
+            g.gain.exponentialRampToValueAtTime(0.001, now + i*0.12 + 0.4);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(now + i*0.12); o.stop(now + i*0.12 + 0.4);
+          });
+        }
+      } catch(e) {}
+    }
+
+    // ── STIMULI ──
+    // Each pair: [nearItem, farItem] with emoji and label
+    const TRAIN_PAIRS = [
+      { near: { emoji: "🏠", label: "Your House" }, far: { emoji: "🌙", label: "The Moon" } },
+      { near: { emoji: "🛋️", label: "The Couch" }, far: { emoji: "🏫", label: "School" } },
+      { near: { emoji: "🚗", label: "Your Car" }, far: { emoji: "⛰️", label: "The Mountains" } },
+      { near: { emoji: "🌳", label: "A Tree Outside" }, far: { emoji: "🏝️", label: "A Tropical Island" } },
+      { near: { emoji: "📬", label: "The Mailbox" }, far: { emoji: "🗽", label: "Statue of Liberty" } },
+      { near: { emoji: "🐕", label: "Your Pet" }, far: { emoji: "🦁", label: "A Lion in Africa" } },
+      { near: { emoji: "🍳", label: "The Kitchen" }, far: { emoji: "🏔️", label: "Mount Everest" } },
+      { near: { emoji: "🛏️", label: "Your Bed" }, far: { emoji: "✈️", label: "An Airplane" } },
+    ];
+
+    // Test pairs — novel items not seen in training
+    const TEST_REVERSAL_PAIRS = [
+      { near: { emoji: "📖", label: "A Book on the Table" }, far: { emoji: "🌋", label: "A Volcano" } },
+      { near: { emoji: "🧸", label: "A Teddy Bear" }, far: { emoji: "🐧", label: "A Penguin in Antarctica" } },
+      { near: { emoji: "🪑", label: "A Chair" }, far: { emoji: "🏰", label: "A Castle" } },
+      { near: { emoji: "🎒", label: "Your Backpack" }, far: { emoji: "🦈", label: "A Shark in the Ocean" } },
+      { near: { emoji: "🖍️", label: "A Crayon" }, far: { emoji: "🌌", label: "A Galaxy" } },
+      { near: { emoji: "🧊", label: "An Ice Cube" }, far: { emoji: "🐪", label: "A Camel in the Desert" } },
+    ];
+
+    // Y-Z transformation: match image to spatial position (close dot vs far dot)
+    const TEST_TRANSFORM_PAIRS = [
+      { near: { emoji: "🥄", label: "A Spoon" }, far: { emoji: "🗼", label: "The Eiffel Tower" } },
+      { near: { emoji: "🧦", label: "A Sock" }, far: { emoji: "🦅", label: "An Eagle in the Sky" } },
+      { near: { emoji: "🔑", label: "A Key" }, far: { emoji: "🌊", label: "The Deep Ocean" } },
+      { near: { emoji: "🧤", label: "A Glove" }, far: { emoji: "☀️", label: "The Sun" } },
+    ];
+
+    const TRAIN_COUNT = 8;
+    const TRAIN_THRESHOLD = 6; // 75%
+    const TEST_REV_COUNT = 6;
+    const TEST_TRANS_COUNT = 4;
+    const TEST_TOTAL = TEST_REV_COUNT + TEST_TRANS_COUNT;
+
+    // ── SHUFFLE ──
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // ── LOCATION CARD ──
+    function LocationCard({ emoji, label, onClick, disabled, highlight, shake }) {
+      return (
+        <button
+          onClick={onClick}
+          disabled={disabled}
+          className={`
+            relative flex flex-col items-center justify-center p-4 rounded-2xl
+            transition-all duration-200 cursor-pointer
+            ${highlight === "correct" ? "ring-4 ring-green-400 bg-green-50 anim-pop" : ""}
+            ${highlight === "incorrect" ? "ring-4 ring-red-300 bg-red-50 anim-wiggle" : ""}
+            ${highlight === "neutral" ? "ring-4 ring-blue-300 bg-blue-50" : ""}
+            ${!highlight ? "glass-bright hover:scale-105 hover:shadow-lg" : "glass-bright"}
+          `}
+          style={{ minWidth: 140, minHeight: 140 }}
+        >
+          <span style={{ fontSize: 56 }}>{emoji}</span>
+          <span className="nunito text-sm font-bold text-gray-700 mt-2 text-center leading-tight">{label}</span>
+        </button>
+      );
+    }
+
+    // ── DOT PROXIMITY DISPLAY ──
+    function DotDisplay({ position }) {
+      // position: "near" shows dot close to bottom, "far" shows dot far away (small, top)
+      return (
+        <div className="relative rounded-2xl overflow-hidden" style={{ width: 160, height: 180, background: "linear-gradient(180deg, #2a3a5c 0%, #5a7a9b 50%, #8ab5a0 80%, #6b9970 100%)" }}>
+          {/* Ground plane lines for perspective */}
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "40%", borderTop: "1px dashed rgba(255,255,255,0.3)" }}></div>
+          <div style={{ position: "absolute", bottom: "20%", left: 0, right: 0, borderTop: "1px dashed rgba(255,255,255,0.15)" }}></div>
+          {/* Person icon at bottom center */}
+          <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", fontSize: 20 }}>🧍</div>
+          {/* The dot */}
+          {position === "near" ? (
+            <div style={{ position: "absolute", bottom: 50, left: "50%", transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", background: "#fbbf24", boxShadow: "0 0 10px rgba(251,191,36,0.6)" }}></div>
+          ) : (
+            <div style={{ position: "absolute", top: 30, left: "50%", transform: "translateX(-50%)", width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", boxShadow: "0 0 6px rgba(251,191,36,0.5)" }}></div>
+          )}
+          <div className="absolute bottom-1 left-0 right-0 text-center">
+            <span className="nunito text-xs font-bold text-white/70">{position === "near" ? "Close" : "Far Away"}</span>
+          </div>
+        </div>
+      );
+    }
+
+    // ── STARS BACKGROUND ──
+    function StarsBackground() {
+      const stars = React.useMemo(() => {
+        const s = [];
+        for (let i = 0; i < 60; i++) {
+          s.push({
+            left: Math.random() * 100 + "%",
+            top: Math.random() * 50 + "%",
+            animDelay: Math.random() * 4 + "s",
+            size: Math.random() * 2 + 1 + "px"
+          });
+        }
+        return s;
+      }, []);
+      return (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none", zIndex: 0 }}>
+          {stars.map((s, i) => (
+            <div key={i} className="star" style={{
+              left: s.left, top: s.top,
+              width: s.size, height: s.size,
+              animation: `twinkle ${2 + Math.random()*3}s ease-in-out infinite`,
+              animationDelay: s.animDelay
+            }}></div>
+          ))}
+        </div>
+      );
+    }
+
+    // ── MAIN APP ──
+    function NearAndFar() {
+      const [phase, setPhase] = useState("intro"); // intro, train, test_rev, test_trans, done
+      const [trials, setTrials] = useState([]);
+      const [trialIdx, setTrialIdx] = useState(0);
+      const [score, setScore] = useState(0);
+      const [trainScore, setTrainScore] = useState(0);
+      const [testScore, setTestScore] = useState(0);
+      const [feedback, setFeedback] = useState(null); // {type, correct, chosen}
+      const [highlights, setHighlights] = useState({});
+      const [scaffolding, setScaffolding] = useState(true);
+
+      const startTraining = useCallback(() => {
+        const t = shuffle(TRAIN_PAIRS).slice(0, TRAIN_COUNT).map(pair => ({
+          ...pair,
+          question: "Which is FARTHER away?",
+          correctKey: "far",
+          phase: "train"
+        }));
+        setTrials(t);
+        setTrialIdx(0);
+        setScore(0);
+        setTrainScore(0);
+        setFeedback(null);
+        setHighlights({});
+        setPhase("train");
+      }, []);
+
+      const startTestReversal = useCallback(() => {
+        const t = shuffle(TEST_REVERSAL_PAIRS).slice(0, TEST_REV_COUNT).map(pair => ({
+          ...pair,
+          question: "Which is CLOSER to you?",
+          correctKey: "near",
+          phase: "test_rev"
+        }));
+        setTrials(t);
+        setTrialIdx(0);
+        setScore(0);
+        setFeedback(null);
+        setHighlights({});
+        setPhase("test_rev");
+      }, []);
+
+      const startTestTransform = useCallback(() => {
+        const t = shuffle(TEST_TRANSFORM_PAIRS).slice(0, TEST_TRANS_COUNT).map((pair, i) => ({
+          ...pair,
+          // Alternate: match the "near" item or the "far" item to a dot position
+          targetPosition: i % 2 === 0 ? "near" : "far",
+          phase: "test_trans"
+        }));
+        setTrials(t);
+        setTrialIdx(0);
+        setFeedback(null);
+        setHighlights({});
+        setPhase("test_trans");
+      }, []);
+
+      const trial = trials[trialIdx] || null;
+
+      // Randomize left/right position for each trial
+      const [flipped, setFlipped] = useState(false);
+      useEffect(() => {
+        setFlipped(Math.random() > 0.5);
+      }, [trialIdx, phase]);
+
+      const handleChoice = (chosenKey) => {
+        if (feedback) return;
+        const isTraining = phase === "train";
+        const correct = chosenKey === trial.correctKey;
+
+        if (correct) {
+          playSound(isTraining ? "correct" : "neutral");
+          setHighlights({ [chosenKey]: isTraining ? "correct" : "neutral" });
+          if (isTraining) {
+            setScore(s => s + 1);
+            setTrainScore(s => s + 1);
+          } else {
+            setScore(s => s + 1);
+            setTestScore(s => s + 1);
+          }
+        } else {
+          playSound(isTraining ? "incorrect" : "neutral");
+          setHighlights({
+            [chosenKey]: isTraining ? "incorrect" : "neutral",
+            ...(isTraining ? { [trial.correctKey]: "correct" } : {})
+          });
+        }
+
+        setFeedback({
+          type: correct ? "correct" : "incorrect",
+          isTraining,
+          correctLabel: trial[trial.correctKey].label
+        });
+
+        setTimeout(() => {
+          setFeedback(null);
+          setHighlights({});
+          if (trialIdx + 1 < trials.length) {
+            setTrialIdx(i => i + 1);
+          } else {
+            // Phase complete
+            if (phase === "train") {
+              const finalTrainScore = correct ? score + 1 : score;
+              setTrainScore(finalTrainScore);
+              if (finalTrainScore >= TRAIN_THRESHOLD) {
+                startTestReversal();
+              } else {
+                // Save train-only session
+                if (window.FrameShift) {
+                  window.FrameShift.saveSession("p21", finalTrainScore, TRAIN_COUNT, null, null, false);
+                }
+                setPhase("done");
+              }
+            } else if (phase === "test_rev") {
+              // Continue to transformation test
+              startTestTransform();
+            } else if (phase === "test_trans") {
+              const finalTestScore = (correct ? score + 1 : score) + testScore - score; // Wait, this is wrong
+              // Actually: testScore tracks across both test phases
+              // At this point, testScore has the reversal score, and score has the transform score
+              // Let me recalculate
+              const totalTest = testScore + (correct ? 1 : 0);
+              playSound("complete");
+              if (window.FrameShift) {
+                window.FrameShift.saveSession("p21", trainScore, TRAIN_COUNT, totalTest, TEST_TOTAL, totalTest >= Math.ceil(TEST_TOTAL * 0.75));
+              }
+              setTestScore(totalTest);
+              setPhase("done");
+            }
+          }
+        }, isTraining ? 1800 : 1200);
+      };
+
+      // For transform trials: choose which image matches the dot position
+      const handleTransformChoice = (chosenKey) => {
+        if (feedback) return;
+        const correct = chosenKey === trial.targetPosition;
+
+        playSound("neutral");
+        setHighlights({ [chosenKey]: "neutral" });
+
+        if (correct) {
+          setScore(s => s + 1);
+          setTestScore(s => s + 1);
+        }
+
+        setFeedback({ type: correct ? "correct" : "incorrect", isTraining: false });
+
+        setTimeout(() => {
+          setFeedback(null);
+          setHighlights({});
+          if (trialIdx + 1 < trials.length) {
+            setTrialIdx(i => i + 1);
+          } else {
+            const totalTest = testScore + (correct ? 1 : 0);
+            playSound("complete");
+            if (window.FrameShift) {
+              window.FrameShift.saveSession("p21", trainScore, TRAIN_COUNT, totalTest, TEST_TOTAL, totalTest >= Math.ceil(TEST_TOTAL * 0.75));
+            }
+            setTestScore(totalTest);
+            setPhase("done");
+          }
+        }, 1200);
+      };
+
+      // ── INTRO SCREEN ──
+      if (phase === "intro") {
+        return (
+          <div className="min-h-screen flex items-center justify-center relative" style={{ zIndex: 1 }}>
+            <StarsBackground />
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4 anim-float">🔭</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">Near & Far</h1>
+              <p className="nunito text-white/80 mb-6 leading-relaxed">
+                Some things are close to you and some things are far away. Let's figure out which is which!
+              </p>
+              <button onClick={startTraining}
+                className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white transition-all hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+                Let's Go! 🚀
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ── DONE SCREEN ──
+      if (phase === "done") {
+        const passed = trainScore >= TRAIN_THRESHOLD;
+        const testPassed = testScore >= Math.ceil(TEST_TOTAL * 0.75);
+        return (
+          <div className="min-h-screen flex items-center justify-center relative" style={{ zIndex: 1 }}>
+            <StarsBackground />
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed ? (testPassed ? "🌟" : "⭐") : "🔭"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">
+                {passed ? (testPassed ? "Amazing Explorer!" : "Great Job!") : "Keep Practicing!"}
+              </h2>
+
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3">
+                  <p className="nunito text-sm text-white/70">Training: Which is farther?</p>
+                  <p className="fredoka text-xl text-white font-bold">{trainScore} / {TRAIN_COUNT}</p>
+                </div>
+                {passed && (
+                  <div className="glass rounded-xl p-3">
+                    <p className="nunito text-sm text-white/70">Test: Closer + Matching</p>
+                    <p className="fredoka text-xl text-white font-bold">{testScore} / {TEST_TOTAL}</p>
+                  </div>
+                )}
+                {!passed && (
+                  <p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} in training to unlock the test!</p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining}
+                  className="px-6 py-2.5 rounded-xl fredoka font-bold text-white transition-all hover:scale-105"
+                  style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+                  Play Again 🔭
+                </button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-blue-200 hover:text-white hover:bg-white/10 transition-all border border-blue-300/30">
+                  ← Back to FrameShift
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── TRANSFORMATION TEST ──
+      if (phase === "test_trans" && trial) {
+        const dotPos = trial.targetPosition; // "near" or "far"
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 relative" style={{ zIndex: 1 }}>
+            <StarsBackground />
+            {/* Progress bar */}
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="nunito text-xs text-white/60 font-bold">Test — Match to Distance</span>
+                <span className="nunito text-xs text-white/60 font-bold">{trialIdx + 1} / {trials.length}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10">
+                <div className="h-2 rounded-full transition-all" style={{ width: ((trialIdx) / trials.length * 100) + "%", background: "linear-gradient(90deg, #a78bfa, #818cf8)" }}></div>
+              </div>
+            </div>
+
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              {/* Show dot display */}
+              <div className="text-center mb-4">
+                <p className="nunito text-white/90 font-bold text-lg mb-3">Which picture matches this distance?</p>
+                <div className="flex justify-center">
+                  <DotDisplay position={dotPos} />
+                </div>
+              </div>
+
+              {/* Two choices */}
+              <div className="flex justify-center gap-4 mt-4">
+                <LocationCard
+                  emoji={trial.near.emoji}
+                  label={trial.near.label}
+                  onClick={() => handleTransformChoice("near")}
+                  disabled={!!feedback}
+                  highlight={highlights["near"]}
+                />
+                <LocationCard
+                  emoji={trial.far.emoji}
+                  label={trial.far.label}
+                  onClick={() => handleTransformChoice("far")}
+                  disabled={!!feedback}
+                  highlight={highlights["far"]}
+                />
+              </div>
+
+              {feedback && (
+                <div className="mt-3 text-center anim-fadein">
+                  <p className="nunito text-sm text-white/60">Response recorded</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ── TRAIN / TEST REVERSAL ──
+      if (!trial) return null;
+
+      const leftItem = flipped ? trial.far : trial.near;
+      const rightItem = flipped ? trial.near : trial.far;
+      const leftKey = flipped ? "far" : "near";
+      const rightKey = flipped ? "near" : "far";
+
+      const isTest = phase === "test_rev";
+      const phaseLabel = isTest ? "Test — Which is Closer?" : "Training — Which is Farther?";
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 relative" style={{ zIndex: 1 }}>
+          <StarsBackground />
+          {/* Progress bar */}
+          <div className="w-full max-w-md mb-4">
+            <div className="flex justify-between items-center mb-1">
+              <span className="nunito text-xs text-white/60 font-bold">{phaseLabel}</span>
+              <span className="nunito text-xs text-white/60 font-bold">{trialIdx + 1} / {trials.length}</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/10">
+              <div className="h-2 rounded-full transition-all" style={{
+                width: ((trialIdx) / trials.length * 100) + "%",
+                background: isTest ? "linear-gradient(90deg, #a78bfa, #818cf8)" : "linear-gradient(90deg, #3b82f6, #60a5fa)"
+              }}></div>
+            </div>
+          </div>
+
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <h2 className="fredoka text-xl text-white text-center mb-1">{trial.question}</h2>
+            {phase === "train" && !feedback && (
+              <p className="nunito text-sm text-white/50 text-center mb-4">Tap the one that is farther away from you</p>
+            )}
+            {phase === "test_rev" && !feedback && (
+              <p className="nunito text-sm text-white/50 text-center mb-4">Tap the one that is closer to you</p>
+            )}
+
+            <div className="flex justify-center gap-4 mt-2">
+              <LocationCard
+                emoji={leftItem.emoji}
+                label={leftItem.label}
+                onClick={() => handleChoice(leftKey)}
+                disabled={!!feedback}
+                highlight={highlights[leftKey]}
+              />
+              <LocationCard
+                emoji={rightItem.emoji}
+                label={rightItem.label}
+                onClick={() => handleChoice(rightKey)}
+                disabled={!!feedback}
+                highlight={highlights[rightKey]}
+              />
+            </div>
+
+            {feedback && phase === "train" && (
+              <div className="mt-4 text-center anim-fadein">
+                {feedback.type === "correct" ? (
+                  <p className="nunito text-sm text-green-300 font-bold">✅ That's right! {feedback.correctLabel} is farther away!</p>
+                ) : (
+                  <p className="nunito text-sm text-amber-300 font-bold">Not quite — {feedback.correctLabel} is farther away.</p>
+                )}
+              </div>
+            )}
+
+            {feedback && isTest && (
+              <div className="mt-3 text-center anim-fadein">
+                <p className="nunito text-sm text-white/60">Response recorded</p>
+              </div>
+            )}
+          </div>
+
+          {/* Score display */}
+          <div className="mt-4 glass rounded-xl px-4 py-2">
+            <span className="nunito text-sm text-white/70 font-bold">Score: {phase === "train" ? trainScore : testScore} / {phase === "train" ? (trialIdx + (feedback ? 1 : 0)) : (trialIdx + (feedback ? 1 : 0))}</span>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<NearAndFar />);
+  </script>
+</body>
+</html>

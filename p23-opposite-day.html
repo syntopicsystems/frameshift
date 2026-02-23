@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Opposite Day — FrameShift P23</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() { try { var r = localStorage.getItem(this.STORAGE_KEY); return r ? JSON.parse(r) : null; } catch(e) { return null; } },
+      save: function(d) { try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(d)); } catch(e) {} },
+      saveSession: function(pid, ts, tm, xs, xm, m) {
+        var d = this.load() || {programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};
+        if (!d.programs) d.programs = {};
+        if (!d.programs[pid]) d.programs[pid] = {sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};
+        var p = d.programs[pid]; p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});
+        if (ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train)) p.bestScore.train=ts;
+        if (xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test)) p.bestScore.test=xs;
+        if (m) p.mastery=true; p.lastPlayed=new Date().toISOString();
+        d.totalSessions=(d.totalSessions||0)+1; var today=new Date().toISOString().slice(0,10);
+        if (!d.streak) d.streak={current:0,best:0,lastDate:null};
+        if (d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}
+        d.streak.lastDate=today; if(d.streak.current>d.streak.best) d.streak.best=d.streak.current; this.save(d);
+      }
+    };
+  </script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    body { background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 30%, #dc2626 50%, #f97316 80%, #fbbf24 100%); min-height: 100vh; }
+    .glass { background: rgba(255,255,255,0.12); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); }
+    .glass-bright { background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); }
+    .card-shadow { box-shadow: 2px 4px 16px rgba(0,0,0,0.25); }
+    .caregiver-panel { border: 2px dashed #fbbf24; background: rgba(251,191,36,0.1); }
+    @keyframes fadeIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+    @keyframes cardFlip { 0%{transform:rotateY(0)} 50%{transform:rotateY(90deg)} 100%{transform:rotateY(0)} }
+    .anim-fadein { animation: fadeIn 0.4s ease-out both; }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .frameshift-back {
+      position:fixed;top:12px;left:12px;z-index:50;
+      background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);
+      padding:6px 16px;border-radius:20px;text-decoration:none;
+      font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;
+      color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;
+    }
+    .frameshift-back:hover { background:rgba(255,255,255,0.25);color:#fff; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useCallback } = React;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      try {
+        if (audioCtx.state==="suspended") audioCtx.resume();
+        const now=audioCtx.currentTime;
+        if (type==="correct") { [440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,now+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(now+i*0.1);o.stop(now+i*0.1+0.3);}); }
+        else if (type==="incorrect") { const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,now);o.frequency.linearRampToValueAtTime(220,now+0.3);g.gain.setValueAtTime(0.12,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(now);o.stop(now+0.35); }
+        else if (type==="neutral") { const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(now);o.stop(now+0.25); }
+        else if (type==="complete") { [523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,now+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(now+i*0.12);o.stop(now+i*0.12+0.4);}); }
+      } catch(e) {}
+    }
+
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    // Opposite pairs with the dimension of opposition
+    const PAIRS = [
+      { A: { emoji: "☀️", label: "Sun" }, B: { emoji: "🌙", label: "Moon" }, dimension: "time of day", howOpposite: "One is out during the day, the other at night" },
+      { A: { emoji: "🔥", label: "Fire" }, B: { emoji: "🧊", label: "Ice" }, dimension: "temperature", howOpposite: "One is hot, the other is cold" },
+      { A: { emoji: "🐘", label: "Elephant" }, B: { emoji: "🐁", label: "Mouse" }, dimension: "size", howOpposite: "One is very big, the other is very small" },
+      { A: { emoji: "🐢", label: "Turtle" }, B: { emoji: "🐇", label: "Rabbit" }, dimension: "speed", howOpposite: "One is slow, the other is fast" },
+      { A: { emoji: "🌵", label: "Desert" }, B: { emoji: "🌊", label: "Ocean" }, dimension: "water", howOpposite: "One is very dry, the other is all water" },
+      { A: { emoji: "🪶", label: "Feather" }, B: { emoji: "🪨", label: "Rock" }, dimension: "weight", howOpposite: "One is very light, the other is heavy" },
+      { A: { emoji: "😊", label: "Happy Face" }, B: { emoji: "😢", label: "Sad Face" }, dimension: "emotion", howOpposite: "One shows happiness, the other shows sadness" },
+      { A: { emoji: "📢", label: "Megaphone" }, B: { emoji: "🤫", label: "Whisper" }, dimension: "volume", howOpposite: "One is very loud, the other is very quiet" },
+    ];
+
+    // Novel test pairs
+    const TEST_PAIRS = [
+      { A: { emoji: "⬛", label: "Night Sky" }, B: { emoji: "⬜", label: "Snow" }, dimension: "color/brightness" },
+      { A: { emoji: "🏔️", label: "Mountain" }, B: { emoji: "🕳️", label: "Valley" }, dimension: "height" },
+      { A: { emoji: "👴", label: "Grandpa" }, B: { emoji: "👶", label: "Baby" }, dimension: "age" },
+      { A: { emoji: "🍬", label: "Candy" }, B: { emoji: "🍋", label: "Lemon" }, dimension: "taste" },
+      { A: { emoji: "🌞", label: "Summer" }, B: { emoji: "❄️", label: "Winter" }, dimension: "temperature/season" },
+      { A: { emoji: "😡", label: "Angry" }, B: { emoji: "😌", label: "Calm" }, dimension: "emotion" },
+    ];
+
+    const TRAIN_COUNT = 8;
+    const TRAIN_THRESHOLD = 6;
+    const TEST_MC_COUNT = 6; // Multiple choice: given dimension, pick opposite pair
+    const TEST_H2H_COUNT = 4; // Head-to-head: caregiver-scored verbal
+    const TEST_TOTAL = TEST_MC_COUNT + TEST_H2H_COUNT;
+
+    function App() {
+      const [phase, setPhase] = useState("intro");
+      const [trials, setTrials] = useState([]);
+      const [trialIdx, setTrialIdx] = useState(0);
+      const [trainScore, setTrainScore] = useState(0);
+      const [testScore, setTestScore] = useState(0);
+      const [feedback, setFeedback] = useState(null);
+      const [response, setResponse] = useState("");
+      const [h2hYourCards, setH2hYourCards] = useState(0);
+
+      const startTraining = useCallback(() => {
+        // Training: show pair, ask "How are these opposites?", caregiver scores
+        const t = shuffle(PAIRS).slice(0, TRAIN_COUNT).map(p => ({
+          ...p, type: "train_describe", phase: "train"
+        }));
+        setTrials(t); setTrialIdx(0); setTrainScore(0); setTestScore(0);
+        setFeedback(null); setResponse(""); setH2hYourCards(0);
+        setPhase("train");
+      }, []);
+
+      const startTest = useCallback(() => {
+        // Test MC: given a dimension word, pick which pair is opposite in that way
+        const mc = shuffle(TEST_PAIRS).slice(0, TEST_MC_COUNT).map(p => {
+          const distractors = shuffle(TEST_PAIRS.filter(x => x.dimension !== p.dimension)).slice(0, 2);
+          const options = shuffle([p, ...distractors]);
+          return { ...p, options, correctIdx: options.indexOf(p), type: "test_mc", phase: "test" };
+        });
+        // Test H2H: head-to-head card game, caregiver-scored
+        const h2h = shuffle(TEST_PAIRS).slice(0, TEST_H2H_COUNT).map(p => ({
+          ...p, type: "test_h2h", phase: "test"
+        }));
+        setTrials([...mc, ...h2h]); setTrialIdx(0); setTestScore(0);
+        setFeedback(null); setResponse(""); setH2hYourCards(0);
+        setPhase("test");
+      }, []);
+
+      const trial = trials[trialIdx] || null;
+
+      const advanceFromTrial = useCallback((correct) => {
+        if (trialIdx + 1 < trials.length) {
+          setTimeout(() => { setTrialIdx(i => i + 1); setFeedback(null); setResponse(""); }, 1200);
+        } else {
+          setTimeout(() => {
+            if (phase === "train") {
+              const ts = trainScore + (correct ? 1 : 0);
+              if (ts >= TRAIN_THRESHOLD) { startTest(); }
+              else {
+                if (window.FrameShift) window.FrameShift.saveSession("p23", ts, TRAIN_COUNT, null, null, false);
+                setTrainScore(ts); setPhase("done");
+              }
+            } else {
+              const xs = testScore + (correct ? 1 : 0);
+              playSound("complete");
+              if (window.FrameShift) window.FrameShift.saveSession("p23", trainScore, TRAIN_COUNT, xs, TEST_TOTAL, xs >= Math.ceil(TEST_TOTAL * 0.75));
+              setTestScore(xs); setPhase("done");
+            }
+            setFeedback(null); setResponse("");
+          }, 1200);
+        }
+      }, [trialIdx, trials, phase, trainScore, testScore, startTest]);
+
+      // Caregiver scoring for train & h2h
+      const handleCaregiverScore = (level) => {
+        const correct = level === "correct";
+        const partial = level === "partial";
+        if (correct) { playSound("correct"); if (phase==="train") setTrainScore(s=>s+1); else { setTestScore(s=>s+1); setH2hYourCards(c=>c+1); } }
+        else if (partial) { playSound("neutral"); if (phase==="train") setTrainScore(s=>s+0.5); else { setTestScore(s=>s+0.5); } }
+        else { playSound("incorrect"); }
+        setFeedback({ type: level });
+        advanceFromTrial(correct);
+      };
+
+      // MC test choice
+      const handleMCChoice = (idx) => {
+        if (feedback) return;
+        const correct = idx === trial.correctIdx;
+        playSound("neutral");
+        if (correct) setTestScore(s => s + 1);
+        setFeedback({ type: correct ? "correct" : "incorrect" });
+        advanceFromTrial(correct);
+      };
+
+      // ── INTRO ──
+      if (phase === "intro") {
+        return (
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">🔄</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">Opposite Day</h1>
+              <p className="nunito text-white/80 mb-4">Some things are opposites — hot and cold, big and small. Let's find out how things are opposite!</p>
+              <div className="caregiver-panel rounded-xl p-3 mb-4">
+                <p className="nunito text-sm text-yellow-100 font-bold">🧑‍🏫 Caregiver needed for scoring</p>
+              </div>
+              <button onClick={startTraining} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{ background: "linear-gradient(135deg, #dc2626, #ea580c)" }}>
+                Let's Go! 🔄
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ── DONE ──
+      if (phase === "done") {
+        const passed = trainScore >= TRAIN_THRESHOLD;
+        const mastered = testScore >= Math.ceil(TEST_TOTAL * 0.75);
+        return (
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🔄"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Opposite Expert!":"Great Work!"):"Keep Practicing!"}</h2>
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore} / {TRAIN_COUNT}</p></div>
+                {passed && <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{Math.round(testScore)} / {TEST_TOTAL}</p></div>}
+                {!passed && <p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} to unlock the test!</p>}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#dc2626,#ea580c)"}}>Play Again 🔄</button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-red-200 hover:text-white hover:bg-white/10 transition-all border border-red-300/30">← Back to FrameShift</a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (!trial) return null;
+      const isTest = phase === "test";
+
+      // ── TRAIN: Describe opposites (caregiver scored) ──
+      if (trial.type === "train_describe") {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1">
+                <span className="nunito text-xs text-white/60 font-bold">Training — How are they opposite?</span>
+                <span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#dc2626,#f97316)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-xl text-white text-center mb-4">How are these opposites?</h2>
+              <div className="flex justify-center gap-6 mb-4">
+                <div className="text-center"><span style={{fontSize:56}}>{trial.A.emoji}</span><p className="nunito text-sm text-white font-bold">{trial.A.label}</p></div>
+                <div className="flex items-center"><span className="fredoka text-3xl text-yellow-300">⚡</span></div>
+                <div className="text-center"><span style={{fontSize:56}}>{trial.B.emoji}</span><p className="nunito text-sm text-white font-bold">{trial.B.label}</p></div>
+              </div>
+              <p className="nunito text-sm text-white/60 text-center mb-2">Hint: Think about <strong className="text-yellow-300">{trial.dimension}</strong></p>
+
+              {!feedback && (
+                <div className="caregiver-panel rounded-xl p-4 mt-4">
+                  <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Caregiver: Ask the child how these are opposite, then score:</p>
+                  <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito" />
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={()=>handleCaregiverScore("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold hover:bg-green-600">✅ Correct</button>
+                    <button onClick={()=>handleCaregiverScore("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold hover:bg-yellow-600">🟡 Partial</button>
+                    <button onClick={()=>handleCaregiverScore("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold hover:bg-red-600">❌ Incorrect</button>
+                  </div>
+                </div>
+              )}
+              {feedback && (
+                <div className="mt-4 text-center anim-fadein">
+                  <p className="nunito text-sm text-white/80">{trial.howOpposite}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ── TEST MC: Pick which pair is opposite in given dimension ──
+      if (trial.type === "test_mc") {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1">
+                <span className="nunito text-xs text-white/60 font-bold">Test — Find the Opposites</span>
+                <span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#fbbf24,#dc2626)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-lg text-white text-center mb-4">Which pair is opposite in <span className="text-yellow-300">{trial.dimension}</span>?</h2>
+              <div className="space-y-3">
+                {trial.options.map((opt, i) => (
+                  <button key={i} onClick={()=>handleMCChoice(i)} disabled={!!feedback}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all
+                      ${feedback && i===trial.correctIdx ? "ring-2 ring-blue-300 bg-blue-50/20" : ""}
+                      ${!feedback ? "glass-bright hover:scale-102 cursor-pointer" : "glass-bright opacity-80"}
+                    `}>
+                    <span style={{fontSize:32}}>{opt.A.emoji}</span>
+                    <span className="fredoka text-gray-600">⚡</span>
+                    <span style={{fontSize:32}}>{opt.B.emoji}</span>
+                    <span className="nunito text-sm text-gray-600 ml-2">{opt.A.label} & {opt.B.label}</span>
+                  </button>
+                ))}
+              </div>
+              {feedback && <p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      // ── TEST H2H: Head-to-head card game (caregiver scored) ──
+      if (trial.type === "test_h2h") {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1">
+                <span className="nunito text-xs text-white/60 font-bold">Test — Head to Head!</span>
+                <span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#fbbf24,#dc2626)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-lg text-white text-center mb-2">🃏 Head to Head!</h2>
+              <p className="nunito text-sm text-white/70 text-center mb-4">Two cards are face up. Tell me how they're opposite to win them!</p>
+              <div className="flex justify-center gap-6 mb-4">
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:48}}>{trial.A.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.A.label}</p>
+                </div>
+                <div className="flex items-center"><span className="fredoka text-2xl text-yellow-300">VS</span></div>
+                <div className="glass-bright rounded-2xl p-4 text-center card-shadow" style={{minWidth:110}}>
+                  <span style={{fontSize:48}}>{trial.B.emoji}</span>
+                  <p className="nunito text-sm text-gray-700 font-bold mt-1">{trial.B.label}</p>
+                </div>
+              </div>
+              {!feedback && (
+                <div className="caregiver-panel rounded-xl p-4">
+                  <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Did the child explain how they're opposite?</p>
+                  <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito" />
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={()=>handleCaregiverScore("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold">✅ Won cards!</button>
+                    <button onClick={()=>handleCaregiverScore("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold">🟡 Partial</button>
+                    <button onClick={()=>handleCaregiverScore("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold">❌ No match</button>
+                  </div>
+                </div>
+              )}
+              {feedback && <p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+              <div className="mt-3 text-center">
+                <span className="nunito text-sm text-yellow-300 font-bold">Your cards: {h2hYourCards} 🃏</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

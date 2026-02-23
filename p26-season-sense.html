@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Season Sense — FrameShift P26</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(pid,ts,tm,xs,xm,m){var d=this.load()||{programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};if(!d.programs)d.programs={};if(!d.programs[pid])d.programs[pid]={sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};var p=d.programs[pid];p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});if(ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train))p.bestScore.train=ts;if(xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test))p.bestScore.test=xs;if(m)p.mastery=true;p.lastPlayed=new Date().toISOString();d.totalSessions=(d.totalSessions||0)+1;var today=new Date().toISOString().slice(0,10);if(!d.streak)d.streak={current:0,best:0,lastDate:null};if(d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}d.streak.lastDate=today;if(d.streak.current>d.streak.best)d.streak.best=d.streak.current;this.save(d);}};
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    .fredoka{font-family:'Fredoka',sans-serif;} .nunito{font-family:'Nunito',sans-serif;}
+    body{background:linear-gradient(180deg,#1e3a5f 0%,#2563eb 25%,#3b82f6 40%,#22c55e 65%,#86efac 85%,#fef9c3 100%);min-height:100vh;}
+    .glass{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.15);}
+    .glass-bright{background:rgba(255,255,255,0.9);backdrop-filter:blur(12px);}
+    .card-shadow{box-shadow:2px 4px 16px rgba(0,0,0,0.2);}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+    .anim-fadein{animation:fadeIn 0.4s ease-out both;}.anim-pop{animation:pop 0.3s ease-in-out;}.anim-wiggle{animation:wiggle 0.4s ease-in-out;}
+    .frameshift-back{position:fixed;top:12px;left:12px;z-index:50;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);padding:6px 16px;border-radius:20px;text-decoration:none;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;}
+    .frameshift-back:hover{background:rgba(255,255,255,0.25);color:#fff;}
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const{useState,useEffect,useCallback}=React;
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    function playSound(t){try{if(audioCtx.state==="suspended")audioCtx.resume();const n=audioCtx.currentTime;if(t==="correct"){[440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.1);o.stop(n+i*0.1+0.3);});}else if(t==="incorrect"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.35);}else if(t==="neutral"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.25);}else if(t==="complete"){[523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.12);o.stop(n+i*0.12+0.4);});}}catch(e){}}
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    const SEASONS=[
+      {name:"Spring",emoji:"🌸",color:"#f9a8d4"},
+      {name:"Summer",emoji:"☀️",color:"#fbbf24"},
+      {name:"Fall",emoji:"🍂",color:"#f97316"},
+      {name:"Winter",emoji:"❄️",color:"#93c5fd"},
+    ];
+
+    // Training: which season has MORE of X
+    const COMPARISONS=[
+      {characteristic:"snow",more:"Winter",less:"Summer",emoji:"🌨️"},
+      {characteristic:"sunshine",more:"Summer",less:"Winter",emoji:"☀️"},
+      {characteristic:"flowers blooming",more:"Spring",less:"Winter",emoji:"🌷"},
+      {characteristic:"leaves falling",more:"Fall",less:"Spring",emoji:"🍁"},
+      {characteristic:"rain",more:"Spring",less:"Winter",emoji:"🌧️"},
+      {characteristic:"heat",more:"Summer",less:"Winter",emoji:"🔥"},
+      {characteristic:"ice on the ground",more:"Winter",less:"Summer",emoji:"🧊"},
+      {characteristic:"pumpkins",more:"Fall",less:"Spring",emoji:"🎃"},
+    ];
+
+    // Test reversals: same pairs, ask LESS (derived from MORE training)
+    const TEST_REVERSALS=[
+      {characteristic:"cold weather",more:"Winter",less:"Summer",emoji:"🥶"},
+      {characteristic:"green leaves on trees",more:"Summer",less:"Winter",emoji:"🌿"},
+      {characteristic:"short days",more:"Winter",less:"Summer",emoji:"🌑"},
+      {characteristic:"birds singing",more:"Spring",less:"Fall",emoji:"🐦"},
+      {characteristic:"wearing coats",more:"Winter",less:"Summer",emoji:"🧥"},
+      {characteristic:"swimming",more:"Summer",less:"Winter",emoji:"🏊"},
+    ];
+
+    // Y-Z: perspective-taking — person states preference, infer their favorite season
+    const PREFERENCES=[
+      {statement:"I love playing in the snow and making snowmen!",person:"⛄",preferredSeason:"Winter"},
+      {statement:"I love going to the beach and eating ice cream!",person:"🏖️",preferredSeason:"Summer"},
+      {statement:"I love jumping in leaf piles and picking apples!",person:"🍎",preferredSeason:"Fall"},
+      {statement:"I love seeing baby animals and picking flowers!",person:"🐣",preferredSeason:"Spring"},
+      {statement:"I like when it's warm enough to ride bikes but not too hot.",person:"🚴",preferredSeason:"Spring"},
+      {statement:"I love when it gets dark early and I can drink hot cocoa by the fire.",person:"🔥",preferredSeason:"Winter"},
+    ];
+
+    const TRAIN_COUNT=8;const TRAIN_THRESHOLD=6;
+    const TEST_REV_COUNT=6;const TEST_PREF_COUNT=4;const TEST_TOTAL=TEST_REV_COUNT+TEST_PREF_COUNT;
+
+    function SeasonBtn({season,onClick,disabled,highlight}){
+      return(
+        <button onClick={onClick} disabled={disabled}
+          className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer
+            ${highlight==="correct"?"ring-4 ring-green-400 bg-green-50 anim-pop":""}
+            ${highlight==="incorrect"?"ring-4 ring-red-300 bg-red-50 anim-wiggle":""}
+            ${highlight==="neutral"?"ring-4 ring-blue-300 bg-blue-50":""}
+            ${!highlight?"glass-bright hover:scale-105":"glass-bright"}
+          `} style={{minWidth:90,minHeight:90}}>
+          <span style={{fontSize:36}}>{season.emoji}</span>
+          <span className="nunito text-xs font-bold text-gray-700 mt-1">{season.name}</span>
+        </button>
+      );
+    }
+
+    function App(){
+      const[phase,setPhase]=useState("intro");
+      const[trials,setTrials]=useState([]);
+      const[trialIdx,setTrialIdx]=useState(0);
+      const[trainScore,setTrainScore]=useState(0);
+      const[testScore,setTestScore]=useState(0);
+      const[feedback,setFeedback]=useState(null);
+      const[highlights,setHighlights]=useState({});
+
+      const startTraining=useCallback(()=>{
+        const t=shuffle(COMPARISONS).slice(0,TRAIN_COUNT).map(c=>({
+          ...c,type:"train_more",question:`Which season has MORE ${c.characteristic}?`,
+          correctSeason:c.more
+        }));
+        setTrials(t);setTrialIdx(0);setTrainScore(0);setTestScore(0);setFeedback(null);setHighlights({});setPhase("train");
+      },[]);
+
+      const startTest=useCallback(()=>{
+        // Reversals: ask LESS
+        const rev=shuffle(TEST_REVERSALS).slice(0,TEST_REV_COUNT).map(c=>({
+          ...c,type:"test_less",question:`Which season has LESS ${c.characteristic}?`,
+          correctSeason:c.less
+        }));
+        // Preferences: infer season
+        const pref=shuffle(PREFERENCES).slice(0,TEST_PREF_COUNT).map(p=>({
+          ...p,type:"test_pref",question:"Which season would this person like BEST?"
+        }));
+        setTrials([...shuffle(rev),...shuffle(pref)]);setTrialIdx(0);setTestScore(0);setFeedback(null);setHighlights({});setPhase("test");
+      },[]);
+
+      const trial=trials[trialIdx]||null;
+      const[seasonOrder,setSeasonOrder]=useState(SEASONS);
+      useEffect(()=>{setSeasonOrder(shuffle(SEASONS));},[trialIdx,phase]);
+
+      const advance=useCallback((correct)=>{
+        setTimeout(()=>{
+          setFeedback(null);setHighlights({});
+          if(trialIdx+1<trials.length){setTrialIdx(i=>i+1);}
+          else{
+            if(phase==="train"){
+              const ts=trainScore+(correct?1:0);
+              if(ts>=TRAIN_THRESHOLD){startTest();}
+              else{if(window.FrameShift)window.FrameShift.saveSession("p26",ts,TRAIN_COUNT,null,null,false);setTrainScore(ts);setPhase("done");}
+            }else{
+              const xs=testScore+(correct?1:0);playSound("complete");
+              if(window.FrameShift)window.FrameShift.saveSession("p26",trainScore,TRAIN_COUNT,xs,TEST_TOTAL,xs>=Math.ceil(TEST_TOTAL*0.75));
+              setTestScore(xs);setPhase("done");
+            }
+          }
+        },phase==="train"?1800:1200);
+      },[trialIdx,trials,phase,trainScore,testScore,startTest]);
+
+      const handleChoice=(seasonName)=>{
+        if(feedback)return;
+        const isTrain=phase==="train";
+        const correctName=trial.type==="test_pref"?trial.preferredSeason:trial.correctSeason;
+        const correct=seasonName===correctName;
+        const chosenIdx=seasonOrder.findIndex(s=>s.name===seasonName);
+        const correctIdx=seasonOrder.findIndex(s=>s.name===correctName);
+
+        if(correct){
+          playSound(isTrain?"correct":"neutral");
+          setHighlights({[chosenIdx]:isTrain?"correct":"neutral"});
+          if(isTrain)setTrainScore(s=>s+1);else setTestScore(s=>s+1);
+        }else{
+          playSound(isTrain?"incorrect":"neutral");
+          setHighlights({[chosenIdx]:isTrain?"incorrect":"neutral",...(isTrain?{[correctIdx]:"correct"}:{})});
+        }
+        setFeedback({type:correct?"correct":"incorrect",isTrain,correctName});
+        advance(correct);
+      };
+
+      if(phase==="intro"){
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="flex justify-center gap-2 mb-4">{SEASONS.map(s=><span key={s.name} style={{fontSize:40}}>{s.emoji}</span>)}</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">Season Sense</h1>
+              <p className="nunito text-white/80 mb-6">Every season is different! Some have more snow, more rain, more sunshine. Let's figure out which season has more or less!</p>
+              <button onClick={startTraining} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#2563eb,#22c55e)"}}>
+                Explore Seasons! 🌍
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if(phase==="done"){
+        const passed=trainScore>=TRAIN_THRESHOLD;const mastered=testScore>=Math.ceil(TEST_TOTAL*0.75);
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🌍"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Season Expert!":"Nice Work!"):"Keep Exploring!"}</h2>
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore}/{TRAIN_COUNT}</p></div>
+                {passed&&<div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{testScore}/{TEST_TOTAL}</p></div>}
+                {!passed&&<p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} to unlock the test!</p>}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#2563eb,#22c55e)"}}>Play Again 🌍</button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-blue-200 hover:text-white hover:bg-white/10 transition-all border border-blue-300/30">← Back to FrameShift</a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if(!trial)return null;
+      const isTrain=phase==="train";
+
+      // PREFERENCE trial
+      if(trial.type==="test_pref"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Season Preference</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#86efac,#22c55e)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <div className="text-center mb-3"><span style={{fontSize:48}}>{trial.person}</span></div>
+              <p className="nunito text-white/90 font-bold text-center text-lg mb-2">"{trial.statement}"</p>
+              <p className="fredoka text-white text-center mb-4">{trial.question}</p>
+              <div className="flex justify-center gap-3">
+                {seasonOrder.map((s,i)=>(
+                  <SeasonBtn key={s.name} season={s} onClick={()=>handleChoice(s.name)} disabled={!!feedback} highlight={highlights[i]}/>
+                ))}
+              </div>
+              {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      // STANDARD: more or less
+      return(
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4">
+            <div className="flex justify-between mb-1">
+              <span className="nunito text-xs text-white/60 font-bold">{isTrain?"Training — More":"Test — Less"}</span>
+              <span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:isTrain?"linear-gradient(90deg,#3b82f6,#60a5fa)":"linear-gradient(90deg,#86efac,#22c55e)"}}></div></div>
+          </div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="text-center mb-2"><span style={{fontSize:48}}>{trial.emoji}</span></div>
+            <h2 className="fredoka text-xl text-white text-center mb-4">{trial.question}</h2>
+            <div className="flex justify-center gap-3">
+              {seasonOrder.map((s,i)=>(
+                <SeasonBtn key={s.name} season={s} onClick={()=>handleChoice(s.name)} disabled={!!feedback} highlight={highlights[i]}/>
+              ))}
+            </div>
+            {feedback&&isTrain&&(
+              <p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.type==="correct"?"text-green-300":"text-amber-300"}`}>
+                {feedback.type==="correct"?"✅ That's right!":("Not quite — "+feedback.correctName+" has more "+trial.characteristic)}
+              </p>
+            )}
+            {feedback&&!isTrain&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+          <div className="mt-4 glass rounded-xl px-4 py-2">
+            <span className="nunito text-sm text-white/70 font-bold">Score: {isTrain?trainScore:testScore} / {trialIdx+(feedback?1:0)}</span>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

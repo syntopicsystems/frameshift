@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feeling Flip — FrameShift P25</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(pid,ts,tm,xs,xm,m){var d=this.load()||{programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};if(!d.programs)d.programs={};if(!d.programs[pid])d.programs[pid]={sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};var p=d.programs[pid];p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});if(ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train))p.bestScore.train=ts;if(xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test))p.bestScore.test=xs;if(m)p.mastery=true;p.lastPlayed=new Date().toISOString();d.totalSessions=(d.totalSessions||0)+1;var today=new Date().toISOString().slice(0,10);if(!d.streak)d.streak={current:0,best:0,lastDate:null};if(d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}d.streak.lastDate=today;if(d.streak.current>d.streak.best)d.streak.best=d.streak.current;this.save(d);}};
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    .fredoka{font-family:'Fredoka',sans-serif;} .nunito{font-family:'Nunito',sans-serif;}
+    body{background:linear-gradient(135deg,#831843 0%,#be185d 30%,#ec4899 60%,#f9a8d4 85%,#fce7f3 100%);min-height:100vh;}
+    .glass{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.15);}
+    .glass-bright{background:rgba(255,255,255,0.9);backdrop-filter:blur(12px);}
+    .card-shadow{box-shadow:2px 4px 16px rgba(0,0,0,0.2);}
+    .caregiver-panel{border:2px dashed #fbbf24;background:rgba(251,191,36,0.1);}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+    .anim-fadein{animation:fadeIn 0.4s ease-out both;}.anim-pop{animation:pop 0.3s ease-in-out;}.anim-wiggle{animation:wiggle 0.4s ease-in-out;}
+    .frameshift-back{position:fixed;top:12px;left:12px;z-index:50;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);padding:6px 16px;border-radius:20px;text-decoration:none;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;}
+    .frameshift-back:hover{background:rgba(255,255,255,0.25);color:#fff;}
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const{useState,useEffect,useCallback}=React;
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    function playSound(t){try{if(audioCtx.state==="suspended")audioCtx.resume();const n=audioCtx.currentTime;if(t==="correct"){[440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.1);o.stop(n+i*0.1+0.3);});}else if(t==="incorrect"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.35);}else if(t==="neutral"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.25);}else if(t==="complete"){[523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.12);o.stop(n+i*0.12+0.4);});}}catch(e){}}
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    // Feeling pairs: each has picture (emoji), word, and opposite
+    const FEELINGS = [
+      {word:"Hot",emoji:"🥵",opposite:"Cold",oppEmoji:"🥶",scenario:"You just came inside from playing in the snow. You want to warm up. What would you drink?",answer:"hot chocolate",item:"☕"},
+      {word:"Cold",emoji:"🥶",opposite:"Hot",oppEmoji:"🥵",scenario:"It's a super sunny day and you're sweating. What would you drink to cool down?",answer:"lemonade",item:"🍋"},
+      {word:"Wet",emoji:"💦",opposite:"Dry",oppEmoji:"🏜️",scenario:"You just got out of the pool and you're dripping. What do you need?",answer:"towel",item:"🧖"},
+      {word:"Warm",emoji:"😊",opposite:"Cool",oppEmoji:"😎",scenario:"It's a chilly evening and you're on the couch. What would make you cozy?",answer:"blanket",item:"🛏️"},
+      {word:"Happy",emoji:"😄",opposite:"Sad",oppEmoji:"😢",scenario:"Your friend fell down and hurt their knee. How do they feel?",answer:"sad",item:"😢"},
+      {word:"Brave",emoji:"🦸",opposite:"Scared",oppEmoji:"😨",scenario:"There's a big spider in the room. If someone picks it up, they are being...",answer:"brave",item:"🦸"},
+      {word:"Excited",emoji:"🤩",opposite:"Bored",oppEmoji:"😐",scenario:"It's your birthday tomorrow! How do you feel?",answer:"excited",item:"🎉"},
+      {word:"Calm",emoji:"😌",opposite:"Angry",oppEmoji:"😡",scenario:"Someone just broke your favorite toy on purpose. How do you feel?",answer:"angry",item:"😡"},
+    ];
+
+    // Novel feelings for test
+    const TEST_FEELINGS = [
+      {word:"Full",emoji:"🫃",opposite:"Hungry",oppEmoji:"🤤"},
+      {word:"Awake",emoji:"⚡",opposite:"Sleepy",oppEmoji:"😴"},
+      {word:"Strong",emoji:"💪",opposite:"Weak",oppEmoji:"🥀"},
+      {word:"Loud",emoji:"📢",opposite:"Quiet",oppEmoji:"🤫"},
+    ];
+
+    const TRAIN_AC=4; // picture-to-word
+    const TRAIN_AB=4; // opposite picture
+    const TRAIN_TOTAL=TRAIN_AC+TRAIN_AB;
+    const TRAIN_THRESHOLD=6;
+    const TEST_DC=4; // word-to-opposite-word (derived)
+    const TEST_YZ=4; // scenario production (caregiver scored)
+    const TEST_TOTAL=TEST_DC+TEST_YZ;
+
+    function FeelingCard({emoji,label,onClick,disabled,highlight}){
+      return(
+        <button onClick={onClick} disabled={disabled}
+          className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer
+            ${highlight==="correct"?"ring-4 ring-green-400 bg-green-50 anim-pop":""}
+            ${highlight==="incorrect"?"ring-4 ring-red-300 bg-red-50 anim-wiggle":""}
+            ${highlight==="neutral"?"ring-4 ring-pink-300 bg-pink-50":""}
+            ${!highlight?"glass-bright hover:scale-105":"glass-bright"}
+          `} style={{minWidth:100,minHeight:100}}>
+          <span style={{fontSize:40}}>{emoji}</span>
+          <span className="nunito text-xs font-bold text-gray-700 mt-1">{label}</span>
+        </button>
+      );
+    }
+
+    function App(){
+      const[phase,setPhase]=useState("intro");
+      const[trials,setTrials]=useState([]);
+      const[trialIdx,setTrialIdx]=useState(0);
+      const[trainScore,setTrainScore]=useState(0);
+      const[testScore,setTestScore]=useState(0);
+      const[feedback,setFeedback]=useState(null);
+      const[highlights,setHighlights]=useState({});
+      const[response,setResponse]=useState("");
+
+      const startTraining=useCallback(()=>{
+        const pool=shuffle(FEELINGS);
+        // A-C: show feeling emoji, pick the word from 3 choices
+        const ac=pool.slice(0,TRAIN_AC).map(f=>{
+          const distractors=shuffle(FEELINGS.filter(x=>x.word!==f.word)).slice(0,2).map(x=>x.word);
+          const opts=shuffle([f.word,...distractors]);
+          return{type:"train_ac",emoji:f.emoji,correctWord:f.word,options:opts,correctIdx:opts.indexOf(f.word),feedback:`${f.emoji} = ${f.word}`};
+        });
+        // A-B: show feeling emoji, pick opposite emoji from 3
+        const ab=pool.slice(0,TRAIN_AB).map(f=>{
+          const distractors=shuffle(FEELINGS.filter(x=>x.word!==f.word&&x.word!==f.opposite)).slice(0,2);
+          const opts=shuffle([{emoji:f.oppEmoji,word:f.opposite,correct:true},...distractors.map(x=>({emoji:x.emoji,word:x.word,correct:false}))]);
+          return{type:"train_ab",emoji:f.emoji,word:f.word,options:opts,correctIdx:opts.findIndex(o=>o.correct),feedback:`The opposite of ${f.word} is ${f.opposite}`};
+        });
+        setTrials(shuffle([...ac,...ab]));setTrialIdx(0);setTrainScore(0);setTestScore(0);setFeedback(null);setHighlights({});setResponse("");setPhase("train");
+      },[]);
+
+      const startTest=useCallback(()=>{
+        // D-C: word to opposite word (novel feelings, never trained)
+        const dc=shuffle(TEST_FEELINGS).slice(0,TEST_DC).map(f=>{
+          const distractors=shuffle(TEST_FEELINGS.filter(x=>x.word!==f.word)).slice(0,2).map(x=>x.opposite);
+          const opts=shuffle([f.opposite,...distractors]);
+          return{type:"test_dc",word:f.word,options:opts,correctIdx:opts.indexOf(f.opposite)};
+        });
+        // Y-Z: scenario production (trained feelings with scenarios)
+        const yz=shuffle(FEELINGS.filter(f=>f.scenario)).slice(0,TEST_YZ).map(f=>({
+          type:"test_yz",scenario:f.scenario,answer:f.answer,item:f.item
+        }));
+        setTrials([...dc,...yz]);setTrialIdx(0);setTestScore(0);setFeedback(null);setHighlights({});setResponse("");setPhase("test");
+      },[]);
+
+      const trial=trials[trialIdx]||null;
+
+      const advance=useCallback((correct)=>{
+        setTimeout(()=>{
+          setFeedback(null);setHighlights({});setResponse("");
+          if(trialIdx+1<trials.length){setTrialIdx(i=>i+1);}
+          else{
+            if(phase==="train"){
+              const ts=trainScore+(correct?1:0);
+              if(ts>=TRAIN_THRESHOLD){startTest();}
+              else{if(window.FrameShift)window.FrameShift.saveSession("p25",ts,TRAIN_TOTAL,null,null,false);setTrainScore(ts);setPhase("done");}
+            }else{
+              const xs=testScore+(correct?1:0);playSound("complete");
+              if(window.FrameShift)window.FrameShift.saveSession("p25",trainScore,TRAIN_TOTAL,xs,TEST_TOTAL,xs>=Math.ceil(TEST_TOTAL*0.75));
+              setTestScore(xs);setPhase("done");
+            }
+          }
+        },phase==="train"?1800:1200);
+      },[trialIdx,trials,phase,trainScore,testScore,startTest]);
+
+      const handleChoice=(idx)=>{
+        if(feedback)return;
+        const isTrain=phase==="train";
+        const correct=idx===trial.correctIdx;
+        if(correct){playSound(isTrain?"correct":"neutral");setHighlights({[idx]:isTrain?"correct":"neutral"});if(isTrain)setTrainScore(s=>s+1);else setTestScore(s=>s+1);}
+        else{playSound(isTrain?"incorrect":"neutral");setHighlights({[idx]:isTrain?"incorrect":"neutral",...(isTrain?{[trial.correctIdx]:"correct"}:{})});}
+        setFeedback({type:correct?"correct":"incorrect",isTrain});
+        advance(correct);
+      };
+
+      const handleCaregiverScore=(level)=>{
+        const correct=level==="correct";
+        if(correct){playSound("neutral");setTestScore(s=>s+1);}
+        else if(level==="partial"){playSound("neutral");setTestScore(s=>s+0.5);}
+        else{playSound("neutral");}
+        setFeedback({type:level});advance(correct);
+      };
+
+      if(phase==="intro"){
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">🎭</div>
+              <h1 className="fredoka text-3xl font-bold text-white mb-2">Feeling Flip</h1>
+              <p className="nunito text-white/80 mb-4">Feelings have names, and some feelings are the opposite of others. Let's learn about feelings!</p>
+              <div className="caregiver-panel rounded-xl p-3 mb-4"><p className="nunito text-sm text-yellow-100 font-bold">🧑‍🏫 Caregiver needed for scenario scoring</p></div>
+              <button onClick={startTraining} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#ec4899,#be185d)"}}>
+                Let's Feel It! 🎭
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if(phase==="done"){
+        const passed=trainScore>=TRAIN_THRESHOLD;const mastered=testScore>=Math.ceil(TEST_TOTAL*0.75);
+        return(
+          <div className="min-h-screen flex items-center justify-center px-4">
+            <div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+              <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🎭"}</div>
+              <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Feelings Expert!":"Great Job!"):"Keep Practicing!"}</h2>
+              <div className="space-y-3 mb-6">
+                <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore}/{TRAIN_TOTAL}</p></div>
+                {passed&&<div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{Math.round(testScore)}/{TEST_TOTAL}</p></div>}
+                {!passed&&<p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_TOTAL} to unlock the test!</p>}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button onClick={startTraining} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#ec4899,#be185d)"}}>Play Again 🎭</button>
+                <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-pink-200 hover:text-white hover:bg-white/10 transition-all border border-pink-300/30">← Back to FrameShift</a>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if(!trial)return null;
+      const isTrain=phase==="train";
+
+      // TRAIN A-C: emoji → pick word
+      if(trial.type==="train_ac"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — Name the Feeling</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#ec4899,#f472b6)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-xl text-white text-center mb-2">What feeling is this?</h2>
+              <div className="text-center mb-4"><span style={{fontSize:72}}>{trial.emoji}</span></div>
+              <div className="flex justify-center gap-3">
+                {trial.options.map((w,i)=>(
+                  <button key={i} onClick={()=>handleChoice(i)} disabled={!!feedback}
+                    className={`px-5 py-3 rounded-xl fredoka text-lg font-bold transition-all
+                      ${highlights[i]==="correct"?"bg-green-400 text-white anim-pop":""}
+                      ${highlights[i]==="incorrect"?"bg-red-300 text-white anim-wiggle":""}
+                      ${highlights[i]==="neutral"?"bg-pink-300 text-white":""}
+                      ${!highlights[i]?"glass-bright text-gray-700 hover:scale-105 cursor-pointer":""}
+                    `}>{w}</button>
+                ))}
+              </div>
+              {feedback&&isTrain&&(
+                <p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.type==="correct"?"text-green-300":"text-amber-300"}`}>
+                  {feedback.type==="correct"?"✅ That's right!":"Not quite — "+trial.feedback}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // TRAIN A-B: emoji → pick opposite emoji
+      if(trial.type==="train_ab"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — Find the Opposite Feeling</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#ec4899,#f472b6)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-xl text-white text-center mb-1">What's the OPPOSITE of this feeling?</h2>
+              <div className="text-center mb-1"><span style={{fontSize:64}}>{trial.emoji}</span></div>
+              <p className="nunito text-sm text-pink-200 text-center mb-4">{trial.word}</p>
+              <div className="flex justify-center gap-3">
+                {trial.options.map((o,i)=>(
+                  <FeelingCard key={i} emoji={o.emoji} label={o.word} onClick={()=>handleChoice(i)} disabled={!!feedback} highlight={highlights[i]}/>
+                ))}
+              </div>
+              {feedback&&isTrain&&(
+                <p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.type==="correct"?"text-green-300":"text-amber-300"}`}>
+                  {feedback.type==="correct"?"✅ That's right!":"Not quite — "+trial.feedback}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // TEST D-C: word → opposite word (derived, never trained together)
+      if(trial.type==="test_dc"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Opposite Word</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#f9a8d4,#ec4899)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-xl text-white text-center mb-2">What's the opposite of:</h2>
+              <p className="fredoka text-3xl text-pink-200 text-center mb-6">{trial.word}</p>
+              <div className="flex justify-center gap-3">
+                {trial.options.map((w,i)=>(
+                  <button key={i} onClick={()=>handleChoice(i)} disabled={!!feedback}
+                    className={`px-5 py-3 rounded-xl fredoka text-lg font-bold transition-all
+                      ${highlights[i]==="neutral"?"bg-pink-300 text-white":""}
+                      ${!highlights[i]?"glass-bright text-gray-700 hover:scale-105 cursor-pointer":"glass-bright"}
+                    `}>{w}</button>
+                ))}
+              </div>
+              {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      // TEST Y-Z: scenario production (caregiver scored)
+      if(trial.type==="test_yz"){
+        return(
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4">
+              <div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Scenario</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div>
+              <div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#f9a8d4,#ec4899)"}}></div></div>
+            </div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <div className="text-center mb-3"><span style={{fontSize:48}}>{trial.item}</span></div>
+              <p className="nunito text-white/90 font-bold text-center text-lg mb-4">"{trial.scenario}"</p>
+              {!feedback&&(
+                <div className="caregiver-panel rounded-xl p-4">
+                  <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Read the scenario aloud. What did the child say?</p>
+                  <p className="nunito text-xs text-yellow-100/70 mb-2">Expected: <em>{trial.answer}</em> (or similar)</p>
+                  <input type="text" placeholder="Child's response (optional)" value={response} onChange={e=>setResponse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito"/>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={()=>handleCaregiverScore("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold">✅ Correct</button>
+                    <button onClick={()=>handleCaregiverScore("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold">🟡 Close</button>
+                    <button onClick={()=>handleCaregiverScore("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold">❌ Incorrect</button>
+                  </div>
+                </div>
+              )}
+              {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
