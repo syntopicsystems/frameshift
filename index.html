@@ -160,26 +160,45 @@
       { id: "p8",  num: 8,  title: "The Why Detective",    subtitle: "Interrogative Frame",   emoji: "🕵️",  color: "#2563EB", file: "p8-why-detective.html",    category: "Abstraction" },
       { id: "p9",  num: 9,  title: "What Kind?",           subtitle: "Descriptive Frame",     emoji: "🎨",  color: "#CA8A04", file: "p9-what-kind.html",        category: "Abstraction" },
       { id: "p10", num: 10, title: "What Comes Next?",     subtitle: "Inductive Pattern",     emoji: "🧩",  color: "#4F46E5", file: "p10-what-comes-next.html", category: "Abstraction" },
+      { id: "p11", num: 11, title: "Chain Reaction",       subtitle: "Conditional Inference",  emoji: "⛓️",  color: "#E65100", file: "p11-chain-reaction.html",  category: "Inference" },
+      { id: "p12", num: 12, title: "Value Chain",          subtitle: "Values & Actions",       emoji: "🌳",  color: "#2E7D32", file: "p12-value-chain.html",     category: "Inference" },
+      { id: "p13", num: 13, title: "Trait Bridge",         subtitle: "Synonyms & Pictures",    emoji: "🔗",  color: "#5E35B1", file: "p13-trait-bridge.html",    category: "Inference" },
+      { id: "p14", num: 14, title: "Feeling Metaphors",    subtitle: "Emotions & Metaphors",   emoji: "🎭",  color: "#1565C0", file: "p14-feeling-metaphors.html",category: "Inference" },
+      { id: "p15", num: 15, title: "Creative Tools",       subtitle: "Problem Solving",        emoji: "🛠️",  color: "#F57F17", file: "p15-creative-tools.html",  category: "Flexibility" },
+      { id: "p16", num: 16, title: "What to Share",        subtitle: "Social Safety",          emoji: "🔒",  color: "#AD1457", file: "p16-what-to-share.html",   category: "Social" },
+      { id: "p17", num: 17, title: "Name That Thing",      subtitle: "Descriptions & Pictures",emoji: "🔎",  color: "#00695C", file: "p17-name-that-thing.html", category: "Language" },
+      { id: "p18", num: 18, title: "Character Namer",      subtitle: "Creative Naming",        emoji: "🎨",  color: "#6A1B9A", file: "p18-character-namer.html", category: "Language" },
+      { id: "p19", num: 19, title: "Same or Different",    subtitle: "Equivalence Classes",    emoji: "🔀",  color: "#E65100", file: "p19-same-or-different.html",category: "Categorization" },
+      { id: "p20", num: 20, title: "Pronoun Bridge",       subtitle: "Pronoun Families",       emoji: "📝",  color: "#283593", file: "p20-pronoun-bridge.html",  category: "Language" },
     ];
 
     const CATEGORIES = [
-      { name: "Translation",  color: "#22C55E", range: "1–2",  desc: "Comparative & coordination frames" },
-      { name: "Equivalence",  color: "#8B5CF6", range: "3–6",  desc: "Identity, cross-modal, feature-based" },
-      { name: "Abstraction",  color: "#2563EB", range: "7–10", desc: "Categorical, interrogative, inductive" },
+      { name: "Translation",    color: "#22C55E", range: "1–2",   desc: "Comparative & coordination frames" },
+      { name: "Equivalence",    color: "#8B5CF6", range: "3–6",   desc: "Identity, cross-modal, feature-based" },
+      { name: "Abstraction",    color: "#2563EB", range: "7–10",  desc: "Categorical, interrogative, inductive" },
+      { name: "Inference",      color: "#E65100", range: "11–14", desc: "Conditional, transitive, metaphorical" },
+      { name: "Flexibility",    color: "#F57F17", range: "15",    desc: "Creative problem solving" },
+      { name: "Social",         color: "#AD1457", range: "16",    desc: "Pragmatics & safety awareness" },
+      { name: "Language",       color: "#00695C", range: "17–18, 20", desc: "Naming, description, pronouns" },
+      { name: "Categorization", color: "#795548", range: "19",    desc: "Equivalence class sorting" },
     ];
 
     // ── ACHIEVEMENTS ────────────────────────────────────────
     const ACHIEVEMENTS = [
       { id: "first_steps",     emoji: "👣", title: "First Steps",       desc: "Complete your first session",           check: (p) => p.totalSessions >= 1 },
-      { id: "explorer",        emoji: "🗺️", title: "Explorer",          desc: "Try all 10 programs",                   check: (p) => Object.keys(p.programs).length >= 10 },
+      { id: "explorer",        emoji: "🗺️", title: "Explorer",          desc: "Try 10 different programs",             check: (p) => Object.keys(p.programs).length >= 10 },
+      { id: "globe_trotter",   emoji: "🌍", title: "Globe Trotter",     desc: "Try all 20 programs",                   check: (p) => Object.keys(p.programs).length >= 20 },
       { id: "five_streak",     emoji: "🔥", title: "On Fire",           desc: "5-day play streak",                     check: (p) => p.streak.best >= 5 },
       { id: "ten_sessions",    emoji: "⭐", title: "Dedicated",         desc: "Complete 10 sessions",                  check: (p) => p.totalSessions >= 10 },
       { id: "mastery_1",       emoji: "🥇", title: "First Mastery",     desc: "Master any program's training phase",   check: (p) => Object.values(p.programs).some(pr => pr.mastery) },
       { id: "mastery_5",       emoji: "🏆", title: "Five Star",         desc: "Master 5 programs",                     check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 5 },
-      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 10 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
+      { id: "mastery_10",      emoji: "🌟", title: "Ten Star",          desc: "Master 10 programs",                    check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
+      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 20 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 20 },
       { id: "equiv_complete",  emoji: "🔗", title: "Equivalence Pro",   desc: "Master all equivalence programs (3–6)", check: (p) => ["p3","p4","p5","p6"].every(id => p.programs[id]?.mastery) },
       { id: "abstraction_complete", emoji: "🧠", title: "Abstract Thinker", desc: "Master all abstraction programs (7–10)", check: (p) => ["p7","p8","p9","p10"].every(id => p.programs[id]?.mastery) },
+      { id: "inference_complete",   emoji: "⛓️", title: "Chain Master",     desc: "Master all inference programs (11–14)",  check: (p) => ["p11","p12","p13","p14"].every(id => p.programs[id]?.mastery) },
       { id: "twenty_five",     emoji: "💎", title: "Quarter Century",   desc: "Complete 25 sessions",                  check: (p) => p.totalSessions >= 25 },
+      { id: "fifty_sessions",  emoji: "🔮", title: "Fifty & Fabulous",  desc: "Complete 50 sessions",                  check: (p) => p.totalSessions >= 50 },
     ];
 
     // ── MASTERY RING ────────────────────────────────────────
@@ -280,8 +299,8 @@
 
       const stats = [
         { label: "Sessions", value: totalSessions, emoji: "📊" },
-        { label: "Programs Tried", value: `${programsTried}/10`, emoji: "🎮" },
-        { label: "Mastered", value: `${programsMastered}/10`, emoji: "⭐" },
+        { label: "Programs Tried", value: `${programsTried}/20`, emoji: "🎮" },
+        { label: "Mastered", value: `${programsMastered}/20`, emoji: "⭐" },
         { label: "Day Streak", value: streak, emoji: "🔥" },
         { label: "Achievements", value: `${achievementsEarned}/${ACHIEVEMENTS.length}`, emoji: "🏅" },
       ];
@@ -303,23 +322,23 @@
     // ── CATEGORY TABS + PROGRESS BAR ────────────────────────
     const CategoryProgress = ({ progress }) => {
       return (
-        <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {CATEGORIES.map(cat => {
             const progs = PROGRAMS.filter(p => p.category === cat.name);
             const mastered = progs.filter(p => progress.programs[p.id]?.mastery).length;
             const pct = Math.round((mastered / progs.length) * 100);
             return (
-              <div key={cat.name} className="glass rounded-xl px-4 py-2 card-shadow border border-white border-opacity-60 min-w-[140px]">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                  <span className="fredoka text-sm text-gray-700 font-bold">{cat.name}</span>
-                  <span className="nunito text-xs text-gray-400 ml-auto">P{cat.range}</span>
+              <div key={cat.name} className="glass rounded-xl px-3 py-2 card-shadow border border-white border-opacity-60">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="fredoka text-xs text-gray-700 font-bold truncate">{cat.name}</span>
+                  <span className="nunito text-[10px] text-gray-400 ml-auto flex-shrink-0">P{cat.range}</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${pct}%`, backgroundColor: cat.color }} />
                 </div>
-                <div className="nunito text-xs text-gray-500 mt-0.5">{mastered}/{progs.length} mastered</div>
+                <div className="nunito text-[10px] text-gray-500 mt-0.5">{mastered}/{progs.length}</div>
               </div>
             );
           })}
@@ -366,7 +385,7 @@
                 </h1>
               </div>
               <p className="nunito text-gray-500 text-sm sm:text-base max-w-lg mx-auto">
-                Relational Frame Training Suite — 10 programs building language and reasoning through play
+                Relational Frame Training Suite — 20 programs building language and reasoning through play
               </p>
               <p className="nunito text-xs text-gray-400 mt-1">Syntopic Systems</p>
             </header>
@@ -489,7 +508,7 @@
             {/* ── FOOTER ─────────────────────────────────── */}
             <footer className="mt-8 text-center">
               <div className="nunito text-xs text-gray-400 space-x-4">
-                <span>FrameShift RFT Suite v1.0</span>
+                <span>FrameShift RFT Suite v2.0</span>
                 <span>·</span>
                 <span>Syntopic Systems</span>
                 <span>·</span>
