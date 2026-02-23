@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronoun Bridge — FrameShift P20</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(145deg,#E8EAF6 0%,#C5CAE9 25%,#9FA8DA 50%,#7986CB 75%,#5C6BC0 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#283593;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(92,107,192,0.3)}50%{box-shadow:0 0 40px rgba(92,107,192,0.6)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+  .blank{display:inline-block;min-width:60px;border-bottom:3px solid #5C6BC0;text-align:center;font-weight:700;color:#283593;padding:0 4px;margin:0 2px}
+  .blank.filled{border-bottom-color:#4CAF50;color:#2E7D32}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// Pronoun families
+const FAMILIES = [
+  { id: 'he',   subject: 'he',   object: 'him',  possessive: 'his',   emoji: '👦', label: 'boy / man' },
+  { id: 'she',  subject: 'she',  object: 'her',  possessive: 'her',   emoji: '👧', label: 'girl / woman' },
+  { id: 'they', subject: 'they', object: 'them', possessive: 'their', emoji: '👫', label: 'group / they' },
+  { id: 'I',    subject: 'I',    object: 'me',   possessive: 'my',    emoji: '🙋', label: 'yourself' },
+];
+
+// ═══════ TRAINING: pronoun matching ═══════
+// Train A→B: given one pronoun, pick another from same family
+// Train B→C: given pronoun, pick matching picture
+function buildTrainTrials() {
+  const trials = [];
+  FAMILIES.forEach(fam => {
+    const others = FAMILIES.filter(f => f.id !== fam.id);
+    // A→B: given subject, pick possessive (same family)
+    trials.push({
+      type: 'matchAB',
+      prompt: fam.subject,
+      promptLabel: 'subject',
+      correct: fam.possessive,
+      correctLabel: 'possessive',
+      wrongs: shuffle(others).slice(0, 2).map(f => f.possessive),
+      family: fam,
+      explain: `"${fam.subject}" and "${fam.possessive}" are in the same family!`
+    });
+    // A→B: given object, pick subject (same family)
+    trials.push({
+      type: 'matchAB',
+      prompt: fam.object,
+      promptLabel: 'object',
+      correct: fam.subject,
+      correctLabel: 'subject',
+      wrongs: shuffle(others).slice(0, 2).map(f => f.subject),
+      family: fam,
+      explain: `"${fam.object}" and "${fam.subject}" belong together!`
+    });
+    // B→C: given possessive, pick picture
+    trials.push({
+      type: 'matchBC',
+      prompt: fam.possessive,
+      correct: fam,
+      wrongs: shuffle(others).slice(0, 2),
+      explain: `"${fam.possessive}" matches ${fam.label}!`
+    });
+  });
+  return shuffle(trials);
+}
+
+// ═══════ TEST: Fill in the blank stories ═══════
+const TEST_STORIES = [
+  {
+    intro: "Jake found a puppy at the park.",
+    sentence: "___BLANK___ picked it up and put it in ___BLANK___ backpack.",
+    blanks: [
+      { answer: 'He', options: ['He', 'She', 'They'], type: 'subject' },
+      { answer: 'his', options: ['his', 'her', 'their'], type: 'possessive' },
+    ],
+    emoji: '👦🐕',
+  },
+  {
+    intro: "Maya loves to paint after school.",
+    sentence: "The art teacher always gives ___BLANK___ extra brushes because ___BLANK___ paintings are so good.",
+    blanks: [
+      { answer: 'her', options: ['her', 'him', 'them'], type: 'object' },
+      { answer: 'her', options: ['her', 'his', 'their'], type: 'possessive' },
+    ],
+    emoji: '👧🎨',
+  },
+  {
+    intro: "The whole team practiced all week.",
+    sentence: "The coach was proud of ___BLANK___ because ___BLANK___ hard work paid off.",
+    blanks: [
+      { answer: 'them', options: ['them', 'him', 'her'], type: 'object' },
+      { answer: 'their', options: ['their', 'his', 'my'], type: 'possessive' },
+    ],
+    emoji: '👫⚽',
+  },
+  {
+    intro: "You just finished building an amazing LEGO castle.",
+    sentence: "___BLANK___ am really proud of what ___BLANK___ hands created.",
+    blanks: [
+      { answer: 'I', options: ['I', 'He', 'They'], type: 'subject' },
+      { answer: 'my', options: ['my', 'his', 'their'], type: 'possessive' },
+    ],
+    emoji: '🙋🏰',
+  },
+  {
+    intro: "Carlos forgot his lunch at home.",
+    sentence: "___BLANK___ friend shared with ___BLANK___ so ___BLANK___ wouldn't be hungry.",
+    blanks: [
+      { answer: 'His', options: ['His', 'Her', 'My'], type: 'possessive' },
+      { answer: 'him', options: ['him', 'her', 'them'], type: 'object' },
+      { answer: 'he', options: ['he', 'she', 'they'], type: 'subject' },
+    ],
+    emoji: '👦🥪',
+  },
+  {
+    intro: "The twins always do everything together.",
+    sentence: "___BLANK___ share ___BLANK___ toys and help each other with ___BLANK___ homework.",
+    blanks: [
+      { answer: 'They', options: ['They', 'He', 'She'], type: 'subject' },
+      { answer: 'their', options: ['their', 'his', 'her'], type: 'possessive' },
+      { answer: 'their', options: ['their', 'my', 'his'], type: 'possessive' },
+    ],
+    emoji: '👫📚',
+  },
+];
+
+const TRAIN_TRIALS_COUNT = FAMILIES.length * 3; // 12
+const TEST_BLANK_COUNT = TEST_STORIES.reduce((sum, s) => sum + s.blanks.length, 0);
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null); // train, test
+  const [trials, setTrials] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [trainScore, setTrainScore] = useState(0);
+  const [testScore, setTestScore] = useState(0);
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+
+  // Story test state
+  const [storyIdx, setStoryIdx] = useState(0);
+  const [blankIdx, setBlankIdx] = useState(0);
+  const [filledBlanks, setFilledBlanks] = useState([]);
+
+  function startTrain() {
+    setPhase('train'); setIdx(0); setTrainScore(0);
+    setTrials(buildTrainTrials());
+    setSelected(null); setShowFb(false); setAnswered(false);
+    setScreen('game');
+  }
+
+  function startTest() {
+    setPhase('test'); setStoryIdx(0); setBlankIdx(0); setTestScore(0);
+    setFilledBlanks([]);
+    setSelected(null); setShowFb(false); setAnswered(false);
+    setScreen('game');
+  }
+
+  // Training answer handler
+  function handleTrainAnswer(i) {
+    if (answered) return;
+    setSelected(i); setAnswered(true);
+    const correct = options[i].isCorrect;
+    if (correct) setTrainScore(s => s + 1);
+    playSound(correct ? 'correct' : 'incorrect');
+    setShowFb(true);
+  }
+
+  // Test story blank answer
+  function handleBlankAnswer(choice) {
+    if (answered) return;
+    setSelected(choice); setAnswered(true);
+    const story = TEST_STORIES[storyIdx];
+    const blank = story.blanks[blankIdx];
+    const correct = choice === blank.answer;
+    if (correct) setTestScore(s => s + 1);
+    setFilledBlanks(prev => [...prev, choice]);
+    playSound('neutral');
+    setShowFb(true);
+  }
+
+  function nextTrain() {
+    if (idx < trials.length - 1) {
+      setIdx(idx + 1); setSelected(null); setShowFb(false); setAnswered(false);
+    } else {
+      setScreen('trainRes');
+    }
+  }
+
+  function nextBlank() {
+    const story = TEST_STORIES[storyIdx];
+    if (blankIdx < story.blanks.length - 1) {
+      setBlankIdx(blankIdx + 1);
+      setSelected(null); setShowFb(false); setAnswered(false);
+    } else if (storyIdx < TEST_STORIES.length - 1) {
+      setStoryIdx(storyIdx + 1); setBlankIdx(0); setFilledBlanks([]);
+      setSelected(null); setShowFb(false); setAnswered(false);
+    } else {
+      if (window.FrameShift) window.FrameShift.saveSession("p20", trainScore, TRAIN_TRIALS_COUNT, testScore, TEST_BLANK_COUNT, true);
+      playSound('complete'); setScreen('testRes');
+    }
+  }
+
+  // Build options for current training trial
+  useEffect(() => {
+    if (phase !== 'train' || !trials[idx]) return;
+    const t = trials[idx];
+    if (t.type === 'matchAB') {
+      setOptions(shuffle([
+        { text: t.correct, isCorrect: true },
+        ...t.wrongs.map(w => ({ text: w, isCorrect: false }))
+      ]));
+    } else if (t.type === 'matchBC') {
+      setOptions(shuffle([
+        { emoji: t.correct.emoji, label: t.correct.label, isCorrect: true },
+        ...t.wrongs.map(w => ({ emoji: w.emoji, label: w.label, isCorrect: false }))
+      ]));
+    }
+    setSelected(null); setShowFb(false); setAnswered(false);
+  }, [idx, trials, phase]);
+
+  const trainProgress = trials.length > 0 ? ((idx + (answered ? 0.5 : 0)) / trials.length) * 100 : 0;
+
+  // ═══════ WELCOME ═══════
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="text-8xl mb-6">📝</div>
+      <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#1A237E'}}>Pronoun Bridge</h1>
+      <p className="text-xl mb-2 font-semibold" style={{color:'#283593'}}>FrameShift Program 20</p>
+      <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+        <p className="text-lg" style={{color:'#1A237E'}}>"He" goes with "him" and "his" — they're a family!</p>
+        <p className="text-base mt-3" style={{color:'#283593'}}>Learn pronoun families, then fill in the blanks in real stories.</p>
+      </div>
+      <button onClick={startTrain} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#283593,#3949AB)',fontFamily:'Fredoka'}}>Start Training 📝</button>
+    </div></div>
+  );
+
+  // ═══════ TRAINING GAME ═══════
+  if (screen === 'game' && phase === 'train') {
+    const trial = trials[idx];
+    if (!trial) return null;
+    const correctIdx = options.findIndex(o => o.isCorrect);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:'#3949AB',color:'white'}}>Training</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#283593'}}>Question {idx+1} of {trials.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${trainProgress}%`,background:'linear-gradient(90deg,#283593,#7986CB)'}}/>
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+
+            {trial.type === 'matchAB' && (
+              <div>
+                <p className="fredoka text-sm font-bold uppercase tracking-wider text-center mb-2" style={{color:'#7986CB'}}>Pronoun → Pronoun</p>
+                <div className="text-center mb-3">
+                  <span className="inline-block px-8 py-4 rounded-2xl text-3xl font-bold" style={{background:'#E8EAF6',color:'#1A237E',fontFamily:'Fredoka'}}>"{trial.prompt}"</span>
+                  <p className="text-xs mt-1 font-semibold" style={{color:'#9FA8DA'}}>({trial.promptLabel})</p>
+                </div>
+                <p className="fredoka text-lg font-bold text-center mb-4" style={{color:'#283593'}}>
+                  Which pronoun is in the same family?
+                </p>
+                <div className="space-y-3 mb-4">
+                  {options.map((o, i) => {
+                    let bg='white',border='#C5CAE9',tc='#1A237E';
+                    if(showFb){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50';tc='#2E7D32'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350';tc='#C62828'}}
+                    return <button key={i} onClick={()=>handleTrainAnswer(i)} disabled={answered}
+                      className="w-full p-4 rounded-xl font-bold text-xl transition-all text-center"
+                      style={{background:bg,border:`2px solid ${border}`,color:tc,fontFamily:'Fredoka',
+                        opacity:answered&&i!==selected&&i!==correctIdx?0.5:1,cursor:answered?'default':'pointer'}}>
+                      "{o.text}"
+                    </button>
+                  })}
+                </div>
+              </div>
+            )}
+
+            {trial.type === 'matchBC' && (
+              <div>
+                <p className="fredoka text-sm font-bold uppercase tracking-wider text-center mb-2" style={{color:'#7986CB'}}>Pronoun → Person</p>
+                <div className="text-center mb-3">
+                  <span className="inline-block px-8 py-4 rounded-2xl text-3xl font-bold" style={{background:'#E8EAF6',color:'#1A237E',fontFamily:'Fredoka'}}>"{trial.prompt}"</span>
+                </div>
+                <p className="fredoka text-lg font-bold text-center mb-4" style={{color:'#283593'}}>
+                  Who does "{trial.prompt}" refer to?
+                </p>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {options.map((o, i) => {
+                    let bg='white',border='#C5CAE9';
+                    if(showFb){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350'}}
+                    return <button key={i} onClick={()=>handleTrainAnswer(i)} disabled={answered}
+                      className="p-4 rounded-2xl transition-all flex flex-col items-center"
+                      style={{background:bg,border:`3px solid ${border}`,opacity:answered&&i!==selected&&i!==correctIdx?0.4:1,cursor:answered?'default':'pointer'}}>
+                      <span className="text-5xl mb-1">{o.emoji}</span>
+                      <span className="text-xs font-semibold" style={{color:'#283593'}}>{o.label}</span>
+                    </button>
+                  })}
+                </div>
+              </div>
+            )}
+
+            {showFb && (
+              <div className="animate-pop">
+                <div className="rounded-xl p-3 mb-4" style={{background:options[selected]?.isCorrect?'#E8F5E9':'#FFF3E0'}}>
+                  <p className="fredoka font-semibold text-center" style={{color:options[selected]?.isCorrect?'#2E7D32':'#E65100'}}>
+                    {options[selected]?.isCorrect ? '✅ Correct!' : 'Not quite!'}
+                  </p>
+                  <p className="text-sm mt-1 text-center" style={{color:'#5D4037'}}>{trial.explain}</p>
+                </div>
+                <div className="text-center"><button onClick={nextTrain} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#283593,#3949AB)',fontFamily:'Fredoka'}}>Next →</button></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════ TEST: Story Fill-in ═══════
+  if (screen === 'game' && phase === 'test') {
+    const story = TEST_STORIES[storyIdx];
+    const blank = story.blanks[blankIdx];
+
+    // Build the rendered sentence with blanks
+    const parts = story.sentence.split('___BLANK___');
+    const rendered = [];
+    parts.forEach((part, pi) => {
+      rendered.push(<span key={`p${pi}`}>{part}</span>);
+      if (pi < parts.length - 1) {
+        const isFilled = pi < filledBlanks.length;
+        const isCurrent = pi === blankIdx;
+        rendered.push(
+          <span key={`b${pi}`} className={`blank ${isFilled ? 'filled' : ''}`}
+            style={{
+              background: isCurrent && !isFilled ? '#E8EAF6' : 'transparent',
+              borderBottomColor: isCurrent && !isFilled ? '#FF6D00' : isFilled ? '#4CAF50' : '#9FA8DA',
+              color: isFilled ? '#2E7D32' : '#283593',
+              fontSize: '1.1em',
+            }}>
+            {isFilled ? filledBlanks[pi] : isCurrent ? '???' : '___'}
+          </span>
+        );
+      }
+    });
+
+    const totalBlanks = TEST_STORIES.reduce((s, st) => s + st.blanks.length, 0);
+    const doneBlanks = TEST_STORIES.slice(0, storyIdx).reduce((s, st) => s + st.blanks.length, 0) + blankIdx;
+    const testProgress = ((doneBlanks + (answered ? 0.5 : 0)) / totalBlanks) * 100;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:'#1A237E',color:'white'}}>Test — Fill the Blank</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#283593'}}>Story {storyIdx+1} of {TEST_STORIES.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${testProgress}%`,background:'linear-gradient(90deg,#283593,#7986CB)'}}/>
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <div className="text-center mb-3"><span className="text-5xl">{story.emoji}</span></div>
+
+            {/* Story text */}
+            <div className="rounded-xl p-5 mb-4" style={{background:'linear-gradient(135deg,#E8EAF6,#C5CAE9)'}}>
+              <p className="text-base leading-relaxed mb-3" style={{color:'#1A237E'}}>
+                {story.intro}
+              </p>
+              <p className="text-lg leading-relaxed" style={{color:'#1A237E'}}>
+                {rendered}
+              </p>
+            </div>
+
+            {/* Current blank indicator */}
+            <p className="fredoka text-base font-bold text-center mb-3" style={{color:'#283593'}}>
+              Fill blank #{blankIdx + 1}: Which pronoun fits?
+              <span className="text-xs block font-normal mt-1" style={{color:'#7986CB'}}>({blank.type})</span>
+            </p>
+
+            {/* Options */}
+            <div className="flex gap-3 justify-center mb-4">
+              {blank.options.map((opt, i) => {
+                let bg='white',border='#C5CAE9',tc='#1A237E';
+                if (showFb) {
+                  if (opt === blank.answer) { bg='#E8F5E9'; border='#4CAF50'; tc='#2E7D32'; }
+                  else if (opt === selected) { bg='#FFEBEE'; border='#EF5350'; tc='#C62828'; }
+                }
+                return <button key={i} onClick={() => handleBlankAnswer(opt)} disabled={answered}
+                  className="px-6 py-4 rounded-xl font-bold text-xl transition-all"
+                  style={{background:bg,border:`2px solid ${border}`,color:tc,fontFamily:'Fredoka',
+                    opacity:answered&&opt!==selected&&opt!==blank.answer?0.5:1,cursor:answered?'default':'pointer'}}>
+                  {opt}
+                </button>
+              })}
+            </div>
+
+            {showFb && (
+              <div className="animate-pop">
+                <div className="text-center rounded-xl p-3 mb-4" style={{background:'#E8EAF6'}}>
+                  <p className="fredoka font-semibold" style={{color:'#283593'}}>Response recorded ✓</p>
+                </div>
+                <div className="text-center"><button onClick={nextBlank} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#283593,#3949AB)',fontFamily:'Fredoka'}}>Next →</button></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════ RESULTS ═══════
+  if (screen === 'trainRes') {
+    const pct = Math.round((trainScore / trials.length) * 100);
+    const passed = pct >= MASTERY * 100;
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">{passed ? '🎉' : '🔄'}</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#1A237E'}}>{passed ? 'Training Complete!' : 'Keep Practicing!'}</h2>
+        <div className="my-6 rounded-xl p-4" style={{background:'#E8EAF6'}}>
+          <p className="fredoka text-lg font-semibold" style={{color:'#283593'}}>Score: {trainScore}/{trials.length} ({pct}%)</p>
+        </div>
+        {passed ? (
+          <div>
+            <p className="text-base mb-4" style={{color:'#5D4037'}}>Now fill in the missing pronouns in real stories!</p>
+            <button onClick={startTest} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#1A237E,#283593)',fontFamily:'Fredoka'}}>Start Stories 📖</button>
+          </div>
+        ) : (
+          <button onClick={startTrain} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#283593,#3949AB)',fontFamily:'Fredoka'}}>Try Again 📝</button>
+        )}
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#283593'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  if (screen === 'testRes') {
+    const pct = Math.round((testScore / TEST_BLANK_COUNT) * 100);
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">🏆</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#1A237E'}}>Stories Complete!</h2>
+        <div className="my-6 space-y-3">
+          <div className="rounded-xl p-3" style={{background:'#E8EAF6'}}>
+            <p className="fredoka text-base font-semibold" style={{color:'#283593'}}>Pronoun Matching: {trainScore}/{TRAIN_TRIALS_COUNT}</p>
+          </div>
+          <div className="rounded-xl p-4" style={{background:'linear-gradient(135deg,#E8EAF6,#C5CAE9)',border:'2px solid #5C6BC0'}}>
+            <p className="fredoka text-xl font-bold" style={{color:'#1A237E'}}>⭐ Story Fill-In: {testScore}/{TEST_BLANK_COUNT} ({pct}%)</p>
+            <p className="text-sm mt-1" style={{color:'#283593'}}>Using pronouns in real sentences!</p>
+          </div>
+        </div>
+        <button onClick={() => { setScreen('welcome'); setPhase(null); }} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#283593,#3949AB)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#283593'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  return null;
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feeling Metaphors — FrameShift P14</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(145deg,#E3F2FD 0%,#BBDEFB 25%,#90CAF9 50%,#64B5F6 75%,#42A5F5 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#1565C0;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(66,165,245,0.3)}50%{box-shadow:0 0 40px rgba(66,165,245,0.6)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// A = spoken emotion word, B = facial expression emoji, C = metaphor word, D = metaphor picture emoji
+const TRAIN_SETS = [
+  { a: "sad",       b: "😢", bName: "crying face",    c: "rain",      d: "🌧️", dName: "rain cloud" },
+  { a: "angry",     b: "😠", bName: "glaring face",   c: "fire",      d: "🔥", dName: "fire" },
+  { a: "happy",     b: "😊", bName: "smiling face",   c: "rainbow",   d: "🌈", dName: "rainbow" },
+  { a: "scared",    b: "😨", bName: "fearful face",   c: "storm",     d: "⛈️", dName: "thunderstorm" },
+  { a: "calm",      b: "😌", bName: "peaceful face",  c: "still water", d: "🏞️", dName: "lake" },
+  { a: "excited",   b: "🤩", bName: "star-eyes face", c: "fireworks", d: "🎆", dName: "fireworks" },
+];
+
+const TEST_SETS = [
+  { a: "lonely",    b: "😔", bName: "downcast face",  c: "desert",    d: "🏜️", dName: "empty desert" },
+  { a: "surprised", b: "😲", bName: "shocked face",   c: "lightning", d: "⚡", dName: "lightning bolt" },
+  { a: "proud",     b: "😤", bName: "determined face", c: "mountain top", d: "🏔️", dName: "mountain peak" },
+  { a: "confused",  b: "😵‍💫", bName: "dizzy face",    c: "maze",      d: "🌀", dName: "swirl" },
+];
+
+const ALL = [...TRAIN_SETS, ...TEST_SETS];
+
+// Training steps per set: teachAB, checkAB, teachCD, checkCD, teachBD, checkBD
+// Test MC step: checkCA_mc (given metaphor word C, which emotion A?)
+// Test Gen step: genCA (given metaphor word C, produce emotion A)
+const TRAIN_CHECKS = 3; // AB, CD, BD
+const TRAIN_TOTAL = TRAIN_SETS.length * TRAIN_CHECKS;
+const TEST_MC_TOTAL = TEST_SETS.length;
+const TEST_GEN_TOTAL = TEST_SETS.length;
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null); // train, test_mc, test_gen
+  const [idx, setIdx] = useState(0);
+  const [step, setStep] = useState('teachAB');
+  const [trainScore, setTrainScore] = useState(0);
+  const [testMcScore, setTestMcScore] = useState(0);
+  const [genScores, setGenScores] = useState([]);
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+  const [childResp, setChildResp] = useState('');
+  const [genScored, setGenScored] = useState(false);
+
+  const items = phase === 'train' ? TRAIN_SETS : TEST_SETS;
+  const item = items[idx] || TRAIN_SETS[0];
+
+  useEffect(() => {
+    if (!items[idx]) return;
+    const it = items[idx];
+    let opts = [];
+    if (step === 'checkAB') {
+      // Given emotion A word, pick expression B
+      const others = shuffle(ALL.filter(x => x !== it)).slice(0, 2);
+      opts = shuffle([
+        { emoji: it.b, name: it.bName, isCorrect: true },
+        { emoji: others[0].b, name: others[0].bName, isCorrect: false },
+        { emoji: others[1].b, name: others[1].bName, isCorrect: false },
+      ]);
+    } else if (step === 'checkCD') {
+      // Given metaphor word C, pick metaphor picture D
+      const others = shuffle(ALL.filter(x => x !== it)).slice(0, 2);
+      opts = shuffle([
+        { emoji: it.d, name: it.dName, isCorrect: true },
+        { emoji: others[0].d, name: others[0].dName, isCorrect: false },
+        { emoji: others[1].d, name: others[1].dName, isCorrect: false },
+      ]);
+    } else if (step === 'checkBD') {
+      // Given expression B, pick metaphor picture D
+      const others = shuffle(ALL.filter(x => x !== it)).slice(0, 2);
+      opts = shuffle([
+        { emoji: it.d, name: it.dName, isCorrect: true },
+        { emoji: others[0].d, name: others[0].dName, isCorrect: false },
+        { emoji: others[1].d, name: others[1].dName, isCorrect: false },
+      ]);
+    } else if (step === 'checkCA_mc') {
+      // Given metaphor word C, pick emotion word A
+      const others = shuffle(ALL.filter(x => x !== it)).slice(0, 2);
+      opts = shuffle([
+        { text: it.a, isCorrect: true },
+        { text: others[0].a, isCorrect: false },
+        { text: others[1].a, isCorrect: false },
+      ]);
+    }
+    setOptions(opts);
+    setSelected(null); setShowFb(false); setAnswered(false);
+  }, [step, idx, phase]);
+
+  function start(p) {
+    setPhase(p); setIdx(0); setSelected(null); setShowFb(false); setAnswered(false);
+    setChildResp(''); setGenScored(false);
+    if (p === 'train') { setStep('teachAB'); setTrainScore(0); }
+    else if (p === 'test_mc') { setStep('checkCA_mc'); setTestMcScore(0); }
+    else if (p === 'test_gen') { setStep('genCA'); setGenScores([]); }
+    setScreen('game');
+  }
+
+  function handleAnswer(i) {
+    if (answered) return;
+    setSelected(i); setAnswered(true);
+    const correct = options[i].isCorrect;
+    if (correct) {
+      if (phase === 'train') setTrainScore(s => s + 1);
+      else if (phase === 'test_mc') setTestMcScore(s => s + 1);
+    }
+    playSound(phase === 'train' ? (correct ? 'correct' : 'incorrect') : 'neutral');
+    setShowFb(true);
+  }
+
+  function handleGenScore(score) {
+    const it = items[idx];
+    setGenScores(prev => [...prev, { set: it, score, response: childResp }]);
+    setGenScored(true);
+    playSound('neutral');
+  }
+
+  function next() {
+    if (phase === 'test_mc') {
+      if (idx < items.length - 1) { setIdx(idx + 1); setStep('checkCA_mc'); }
+      else { setScreen('testMcRes'); }
+      return;
+    }
+    if (phase === 'test_gen') {
+      if (idx < items.length - 1) { setIdx(idx + 1); setStep('genCA'); setChildResp(''); setGenScored(false); }
+      else {
+        if (window.FrameShift) {
+          const gc = genScores.filter(g => g.score === 'correct').length;
+          window.FrameShift.saveSession("p14", trainScore, TRAIN_TOTAL, testMcScore + gc, TEST_MC_TOTAL + TEST_GEN_TOTAL, true);
+        }
+        playSound('complete'); setScreen('finalRes');
+      }
+      return;
+    }
+    // Training
+    const order = ['teachAB', 'checkAB', 'teachCD', 'checkCD', 'teachBD', 'checkBD'];
+    const ci = order.indexOf(step);
+    if (ci < order.length - 1) { setStep(order[ci + 1]); }
+    else if (idx < items.length - 1) { setIdx(idx + 1); setStep('teachAB'); }
+    else { setScreen('trainRes'); }
+  }
+
+  const progress = (() => {
+    if (phase === 'test_mc') return ((idx + (answered ? 1 : 0)) / items.length) * 100;
+    if (phase === 'test_gen') return ((idx + (genScored ? 1 : 0)) / items.length) * 100;
+    const order = ['teachAB','checkAB','teachCD','checkCD','teachBD','checkBD'];
+    return ((idx * 6 + order.indexOf(step)) / (items.length * 6)) * 100;
+  })();
+
+  // ═══════ WELCOME ═══════
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="text-8xl mb-6">🎭</div>
+        <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#0D47A1'}}>Feeling Metaphors</h1>
+        <p className="text-xl mb-2 font-semibold" style={{color:'#1565C0'}}>FrameShift Program 14</p>
+        <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+          <p className="text-lg" style={{color:'#0D47A1'}}>Feelings have faces. Feelings are like things in nature.</p>
+          <p className="text-base mt-3" style={{color:'#1565C0'}}>If someone feels like "rain" — how do they feel?</p>
+        </div>
+        <button onClick={() => start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Start Training 🎭</button>
+      </div>
+    </div>
+  );
+
+  // ═══════ GAME ═══════
+  if (screen === 'game') {
+    const it = items[idx];
+    const isTest = phase !== 'train';
+    const pLabel = phase === 'train' ? 'Training' : phase === 'test_mc' ? 'Test — Choose' : 'Test — Create';
+    const correctIdx = options.findIndex(o => o.isCorrect);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background: phase==='test_gen'?'#0D47A1':phase==='test_mc'?'#1565C0':'#1E88E5',color:'white'}}>{pLabel}</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#0D47A1'}}>Set {idx+1} of {items.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#1565C0,#42A5F5)'}}/>
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg">
+          {/* TEACH A→B: emotion word → face */}
+          {step === 'teachAB' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-2" style={{color:'#42A5F5'}}>Emotion → Face</p>
+              <div className="rounded-xl p-4 mb-3" style={{background:'#E3F2FD'}}>
+                <p className="fredoka text-2xl font-bold" style={{color:'#0D47A1'}}>"{it.a}"</p>
+              </div>
+              <span className="fredoka text-3xl" style={{color:'#1E88E5'}}>→</span>
+              <div className="text-7xl my-3">{it.b}</div>
+              <p className="text-base mb-5" style={{color:'#1565C0'}}>When someone feels <strong>{it.a}</strong>, they look like this: {it.bName}</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Got It! 👍</button>
+            </div>
+          )}
+
+          {/* CHECK A→B: "Which face feels [emotion]?" */}
+          {step === 'checkAB' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#42A5F5'}}>Emotion → Face</p>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#0D47A1'}}>Which face feels "{it.a}"?</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {options.map((o, i) => {
+                  let bg='white',border='#BBDEFB',shadow='0 2px 6px rgba(0,0,0,0.08)';
+                  if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350'}}
+                  else if(showFb&&isTest&&i===selected){bg='#E3F2FD';border='#1E88E5'}
+                  return (
+                    <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                      className="p-4 rounded-2xl transition-all flex flex-col items-center"
+                      style={{background:bg,border:`3px solid ${border}`,boxShadow:shadow,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.4:1,cursor:answered?'default':'pointer'}}>
+                      <span className="text-5xl">{o.emoji}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {showFb && <FbBar isTest={isTest} correct={options[selected]?.isCorrect} ans={options[correctIdx]?.name} onNext={next}/>}
+            </div>
+          )}
+
+          {/* TEACH C→D: metaphor word → metaphor picture */}
+          {step === 'teachCD' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-2" style={{color:'#42A5F5'}}>Metaphor → Picture</p>
+              <div className="rounded-xl p-4 mb-3" style={{background:'#E3F2FD'}}>
+                <p className="fredoka text-2xl font-bold" style={{color:'#0D47A1'}}>"{it.c}"</p>
+              </div>
+              <span className="fredoka text-3xl" style={{color:'#1E88E5'}}>→</span>
+              <div className="text-7xl my-3">{it.d}</div>
+              <p className="text-base mb-5" style={{color:'#1565C0'}}>When we say "<strong>{it.c}</strong>," we picture: {it.dName}</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Got It! 👍</button>
+            </div>
+          )}
+
+          {/* CHECK C→D: "Which picture is [metaphor]?" */}
+          {step === 'checkCD' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#42A5F5'}}>Metaphor → Picture</p>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#0D47A1'}}>Which picture shows "{it.c}"?</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {options.map((o, i) => {
+                  let bg='white',border='#BBDEFB';
+                  if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350'}}
+                  else if(showFb&&isTest&&i===selected){bg='#E3F2FD';border='#1E88E5'}
+                  return (
+                    <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                      className="p-4 rounded-2xl transition-all flex flex-col items-center"
+                      style={{background:bg,border:`3px solid ${border}`,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.4:1,cursor:answered?'default':'pointer'}}>
+                      <span className="text-5xl">{o.emoji}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {showFb && <FbBar isTest={isTest} correct={options[selected]?.isCorrect} ans={options[correctIdx]?.name} onNext={next}/>}
+            </div>
+          )}
+
+          {/* TEACH B→D: face → metaphor picture */}
+          {step === 'teachBD' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-2" style={{color:'#42A5F5'}}>Face → Metaphor Picture</p>
+              <div className="flex items-center justify-center gap-4 my-4">
+                <div className="text-center">
+                  <span className="text-6xl">{it.b}</span>
+                  <p className="text-xs mt-1 font-semibold" style={{color:'#1565C0'}}>face</p>
+                </div>
+                <span className="fredoka text-3xl" style={{color:'#1E88E5'}}>↔</span>
+                <div className="text-center">
+                  <span className="text-6xl">{it.d}</span>
+                  <p className="text-xs mt-1 font-semibold" style={{color:'#1565C0'}}>metaphor</p>
+                </div>
+              </div>
+              <p className="text-base mb-5" style={{color:'#1565C0'}}>This face {it.b} goes with {it.dName} {it.d} — they both feel like <strong>{it.a}</strong>.</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Got It! 👍</button>
+            </div>
+          )}
+
+          {/* CHECK B→D: "Which metaphor picture goes with this face?" */}
+          {step === 'checkBD' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#42A5F5'}}>Face → Metaphor Picture</p>
+              <div className="text-center mb-3"><span className="text-6xl">{it.b}</span></div>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#0D47A1'}}>Which metaphor matches this face?</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {options.map((o, i) => {
+                  let bg='white',border='#BBDEFB';
+                  if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350'}}
+                  else if(showFb&&isTest&&i===selected){bg='#E3F2FD';border='#1E88E5'}
+                  return (
+                    <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                      className="p-4 rounded-2xl transition-all flex flex-col items-center"
+                      style={{background:bg,border:`3px solid ${border}`,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.4:1,cursor:answered?'default':'pointer'}}>
+                      <span className="text-5xl">{o.emoji}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {showFb && <FbBar isTest={isTest} correct={options[selected]?.isCorrect} ans={options[correctIdx]?.name} onNext={next}/>}
+            </div>
+          )}
+
+          {/* TEST MC: C→A "If someone feels like [metaphor], how do they feel?" */}
+          {step === 'checkCA_mc' && (
+            <div className="animate-pop bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#0D47A1'}}>⭐ Metaphor → Emotion</p>
+              <div className="text-center mb-2">
+                <span className="text-5xl">{it.d}</span>
+              </div>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#0D47A1'}}>
+                If someone feels like "{it.c}", how do they feel?
+              </p>
+              <div className="space-y-3 mb-4">
+                {options.map((o, i) => {
+                  let bg='white',border='#BBDEFB',tc='#0D47A1';
+                  if(showFb&&i===selected){bg='#E3F2FD';border='#1E88E5';tc='#0D47A1'}
+                  return <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                    className="w-full p-4 rounded-xl font-semibold transition-all text-left"
+                    style={{background:bg,border:`2px solid ${border}`,color:tc,opacity:answered&&i!==selected?0.5:1,cursor:answered?'default':'pointer'}}>
+                    {o.text}
+                  </button>
+                })}
+              </div>
+              {showFb && (
+                <div className="animate-pop text-center">
+                  <div className="rounded-xl p-3 mb-4" style={{background:'#E3F2FD'}}>
+                    <p className="fredoka font-semibold" style={{color:'#1565C0'}}>Response recorded ✓</p>
+                  </div>
+                  <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Next →</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TEST GEN: C→A open generation */}
+          {step === 'genCA' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-bold uppercase tracking-wider mb-2 text-center" style={{color:'#0D47A1'}}>⭐ Your Turn to Say It!</p>
+              <div className="text-center mb-3">
+                <span className="text-6xl">{it.d}</span>
+              </div>
+              <div className="rounded-xl p-5 mb-4" style={{background:'linear-gradient(135deg,#E3F2FD,#BBDEFB)'}}>
+                <p className="fredoka text-xl font-bold text-center" style={{color:'#0D47A1'}}>
+                  Someone feels like "{it.c}"
+                </p>
+                <p className="fredoka text-lg text-center mt-2" style={{color:'#1565C0'}}>
+                  How does that person feel?
+                </p>
+              </div>
+
+              <div className="rounded-2xl p-4 mb-4" style={{background:'#FFF8E1',border:'2px dashed #FFB74D'}}>
+                <p className="fredoka text-sm font-bold mb-3" style={{color:'#E65100'}}>🧑‍🏫 Caregiver: Write what the child says</p>
+                <input type="text" value={childResp} onChange={e=>setChildResp(e.target.value)} disabled={genScored}
+                  placeholder="Type the child's answer..."
+                  className="w-full p-3 rounded-xl text-base border-2 focus:outline-none transition-all"
+                  style={{borderColor:genScored?'#C8E6C9':'#FFB74D',background:genScored?'#F1F8E9':'white',color:'#0D47A1'}}/>
+
+                {!genScored && childResp.trim().length > 0 && (
+                  <div className="mt-4 animate-pop">
+                    <p className="text-sm font-semibold mb-2" style={{color:'#BF360C'}}>Does their answer match an emotion related to "{it.c}"?</p>
+                    <p className="text-xs mb-3" style={{color:'#8D6E63'}}>Correct answer is "{it.a}" but accept synonyms (e.g., "unhappy" for "sad")</p>
+                    <div className="flex gap-2">
+                      <button onClick={()=>handleGenScore('correct')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#4CAF50',fontFamily:'Fredoka'}}>✅ Yes</button>
+                      <button onClick={()=>handleGenScore('partial')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#FF9800',fontFamily:'Fredoka'}}>🟡 Close</button>
+                      <button onClick={()=>handleGenScore('incorrect')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#EF5350',fontFamily:'Fredoka'}}>❌ No</button>
+                    </div>
+                  </div>
+                )}
+                {!genScored && childResp.trim().length === 0 && (
+                  <button onClick={()=>{setChildResp('(no response)');handleGenScore('incorrect')}} className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold hover:scale-105 transition-all" style={{background:'#FFEBEE',color:'#C62828',fontFamily:'Fredoka'}}>No Response</button>
+                )}
+              </div>
+
+              {genScored && (
+                <div className="animate-pop text-center">
+                  <div className="rounded-xl p-3 mb-4" style={{background:'#E3F2FD'}}>
+                    <p className="fredoka font-semibold" style={{color:'#1565C0'}}>Response recorded ✓</p>
+                    <p className="text-sm mt-1" style={{color:'#1E88E5'}}>The feeling is: <strong>{it.a}</strong></p>
+                  </div>
+                  <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Next →</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // TRAIN RESULTS
+  if (screen === 'trainRes') {
+    const pct = Math.round((trainScore/TRAIN_TOTAL)*100);
+    const passed = pct >= MASTERY*100;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+          <div className="text-6xl mb-4">{passed?'🎉':'🔄'}</div>
+          <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#0D47A1'}}>{passed?'Training Complete!':'Keep Practicing!'}</h2>
+          <div className="my-6 rounded-xl p-4" style={{background:'#E3F2FD'}}>
+            <p className="fredoka text-lg font-semibold" style={{color:'#1565C0'}}>Score: {trainScore} / {TRAIN_TOTAL} ({pct}%)</p>
+          </div>
+          {passed ? <button onClick={()=>start('test_mc')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#0D47A1,#1565C0)',fontFamily:'Fredoka'}}>Start Test 🧪</button>
+          : <button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Try Again 🎭</button>}
+          <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#1565C0'}}>← Back to FrameShift</a></div>
+        </div>
+      </div></div>
+    );
+  }
+
+  // TEST MC RESULTS → gateway to generation
+  if (screen === 'testMcRes') {
+    const pct = Math.round((testMcScore/TEST_MC_TOTAL)*100);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+          <div className="text-5xl mb-4">🌿</div>
+          <h2 className="fredoka text-2xl font-bold mb-2" style={{color:'#0D47A1'}}>Multiple Choice Done!</h2>
+          <div className="my-4 rounded-xl p-4" style={{background:'#E3F2FD'}}>
+            <p className="fredoka text-lg font-semibold" style={{color:'#1565C0'}}>Recognition: {testMcScore} / {TEST_MC_TOTAL} ({pct}%)</p>
+          </div>
+          <div className="rounded-2xl p-5 mb-6" style={{background:'#FFF8E1',border:'2px solid #FFB74D'}}>
+            <p className="fredoka text-lg font-bold mb-2" style={{color:'#E65100'}}>🧑‍🏫 Next: Generation!</p>
+            <p className="text-sm" style={{color:'#BF360C'}}>The child will hear a metaphor and must <strong>say the emotion</strong> — no choices!</p>
+          </div>
+          <button onClick={()=>start('test_gen')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#0D47A1,#1565C0)',fontFamily:'Fredoka'}}>Start Generation 🌟</button>
+          <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#1565C0'}}>← Back to FrameShift</a></div>
+        </div>
+      </div></div>
+    );
+  }
+
+  // FINAL RESULTS
+  if (screen === 'finalRes') {
+    const mcPct = Math.round((testMcScore/TEST_MC_TOTAL)*100);
+    const gc = genScores.filter(g=>g.score==='correct').length;
+    const gp = genScores.filter(g=>g.score==='partial').length;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+          <div className="text-6xl mb-4">🏆</div>
+          <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#0D47A1'}}>All Done!</h2>
+          <div className="my-6 space-y-3">
+            <div className="rounded-xl p-3" style={{background:'#E3F2FD'}}><p className="fredoka text-base font-semibold" style={{color:'#1565C0'}}>Recognition: {testMcScore}/{TEST_MC_TOTAL} ({mcPct}%)</p></div>
+            <div className="rounded-xl p-4" style={{background:'linear-gradient(135deg,#E3F2FD,#BBDEFB)',border:'2px solid #42A5F5'}}>
+              <p className="fredoka text-xl font-bold" style={{color:'#0D47A1'}}>⭐ Generation: {gc}/{TEST_GEN_TOTAL}</p>
+              {gp>0&&<p className="text-sm mt-1" style={{color:'#1565C0'}}>+ {gp} partial</p>}
+            </div>
+          </div>
+          {genScores.length>0&&(
+            <div className="text-left rounded-xl p-4 mb-4" style={{background:'#E3F2FD'}}>
+              <p className="fredoka text-sm font-bold mb-2" style={{color:'#1565C0'}}>Responses:</p>
+              {genScores.map((g,i)=>(
+                <div key={i} className="flex items-start gap-2 mb-2">
+                  <span className="text-lg">{g.score==='correct'?'✅':g.score==='partial'?'🟡':'❌'}</span>
+                  <p className="text-sm"><strong>{g.set.c}</strong> → "{g.response}" <span className="text-xs" style={{color:'#90A4AE'}}>(answer: {g.set.a})</span></p>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={()=>{setScreen('welcome');setPhase(null);setGenScores([])}} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+          <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#1565C0'}}>← Back to FrameShift</a></div>
+        </div>
+      </div></div>
+    );
+  }
+  return null;
+}
+
+function FbBar({isTest,correct,ans,onNext}){
+  return <div className="animate-pop">{isTest?<div className="text-center rounded-xl p-3 mb-4" style={{background:'#E3F2FD'}}><p className="fredoka font-semibold" style={{color:'#1565C0'}}>Response recorded ✓</p></div>
+  :<div className="text-center rounded-xl p-3 mb-4" style={{background:correct?'#E8F5E9':'#FFF3E0'}}>{correct?<p className="fredoka font-semibold" style={{color:'#2E7D32'}}>✅ Right!</p>:<p className="fredoka font-semibold" style={{color:'#E65100'}}>Not quite — it was: <strong>{ans}</strong></p>}</div>}
+  <div className="text-center"><button onClick={onNext} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#1565C0,#1E88E5)',fontFamily:'Fredoka'}}>Next →</button></div></div>;
+}
+
+ReactDOM.render(<App/>,document.getElementById('root'));
+</script>
+</body>
+</html>

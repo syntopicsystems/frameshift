@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chain Reaction — FrameShift P11</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+
+<script>
+  // FrameShift Hub Tracker Utility
+  window.FrameShift = {
+    STORAGE_KEY: "frameshift_progress",
+    load: function() {
+      try {
+        var raw = localStorage.getItem(this.STORAGE_KEY);
+        return raw ? JSON.parse(raw) : { sessions: {}, achievements: [] };
+      } catch(e) { return { sessions: {}, achievements: [] }; }
+    },
+    save: function(data) {
+      try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+    },
+    saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+      var data = this.load();
+      if (!data.sessions[programId]) data.sessions[programId] = [];
+      data.sessions[programId].push({
+        date: new Date().toISOString(),
+        train: { score: trainScore, max: trainMax },
+        test: testScore !== null ? { score: testScore, max: testMax } : null,
+        mastery: mastery
+      });
+      this.save(data);
+    }
+  };
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 30%, #FFCC80 70%, #FFB74D 100%);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .fredoka { font-family: 'Fredoka', sans-serif; }
+
+  .frameshift-back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(8px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: #BF360C;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .frameshift-back:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  /* Chain link animation */
+  @keyframes chainPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.7); }
+    70% { transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes dominoFall {
+    0% { transform: rotate(0deg); opacity: 1; }
+    100% { transform: rotate(15deg); opacity: 0.8; }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,152,0,0.3); }
+    50% { box-shadow: 0 0 40px rgba(255,152,0,0.6); }
+  }
+  .animate-slide-up { animation: slideUp 0.5s ease-out forwards; }
+  .animate-pop { animation: popIn 0.4s ease-out forwards; }
+  .animate-glow { animation: glowPulse 2s ease-in-out infinite; }
+
+  /* Gear decorations */
+  .gear-bg {
+    position: fixed;
+    opacity: 0.06;
+    font-size: 120px;
+    pointer-events: none;
+    animation: spin 20s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+
+<!-- Background gears -->
+<div class="gear-bg" style="top: -30px; right: -30px;">⚙️</div>
+<div class="gear-bg" style="bottom: -20px; left: -20px; font-size: 90px; animation-direction: reverse;">⚙️</div>
+<div class="gear-bg" style="top: 40%; right: 10%; font-size: 60px; animation-duration: 30s;">⚙️</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ──────────────── SOUND EFFECTS ────────────────
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    if (type === 'correct') {
+      [440, 554, 659].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, now + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.3);
+        osc.start(now + i * 0.12);
+        osc.stop(now + i * 0.12 + 0.3);
+      });
+    } else if (type === 'incorrect') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 330;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.12, now);
+      osc.frequency.linearRampToValueAtTime(220, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.start(now); osc.stop(now + 0.35);
+    } else if (type === 'neutral') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 440;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'complete') {
+      [523, 587, 659, 784, 880].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, now + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+        osc.start(now + i * 0.15);
+        osc.stop(now + i * 0.15 + 0.45);
+      });
+    } else if (type === 'chain') {
+      // special chain-link sound: two quick ascending notes
+      [392, 523].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f;
+        osc.type = 'triangle';
+        gain.gain.setValueAtTime(0.12, now + i * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.2);
+        osc.start(now + i * 0.08);
+        osc.stop(now + i * 0.08 + 0.25);
+      });
+    }
+  } catch(e) {}
+}
+
+// ──────────────── STIMULUS CHAINS ────────────────
+// Each chain: { a, b, c, emojiA, emojiB, emojiC }
+// Training chains (6) — with corrective feedback on all steps
+const TRAIN_CHAINS = [
+  {
+    a: "you didn't do your homework",
+    b: "you got a bad grade",
+    c: "you got in trouble",
+    emojiA: "📝", emojiB: "📉", emojiC: "😟"
+  },
+  {
+    a: "the dam is very old",
+    b: "the dam breaks",
+    c: "water goes everywhere",
+    emojiA: "🧱", emojiB: "💥", emojiC: "🌊"
+  },
+  {
+    a: "berries are in season",
+    b: "you can pick berries",
+    c: "you can make a pie",
+    emojiA: "🫐", emojiB: "🧺", emojiC: "🥧"
+  },
+  {
+    a: "it rained a lot",
+    b: "the river got really high",
+    c: "the bridge flooded",
+    emojiA: "🌧️", emojiB: "🏞️", emojiC: "🌊"
+  },
+  {
+    a: "the dog got out of the yard",
+    b: "the dog ran to the park",
+    c: "the dog got all muddy",
+    emojiA: "🐕", emojiB: "🏃", emojiC: "🐾"
+  },
+  {
+    a: "you planted seeds in the garden",
+    b: "flowers grew tall",
+    c: "butterflies came to visit",
+    emojiA: "🌱", emojiB: "🌻", emojiC: "🦋"
+  }
+];
+
+// Test chains (4) — novel stimuli, no corrective feedback on derivation
+const TEST_CHAINS = [
+  {
+    a: "the cat knocked over the glass",
+    b: "water spilled on the table",
+    c: "the papers got all wet",
+    emojiA: "🐱", emojiB: "💧", emojiC: "📄"
+  },
+  {
+    a: "the alarm clock didn't ring",
+    b: "you overslept",
+    c: "you were late for school",
+    emojiA: "⏰", emojiB: "😴", emojiC: "🏫"
+  },
+  {
+    a: "the power went out",
+    b: "the fridge stopped working",
+    c: "the food went bad",
+    emojiA: "🔌", emojiB: "❄️", emojiC: "🤢"
+  },
+  {
+    a: "the wind blew really hard",
+    b: "a big tree branch fell",
+    c: "it blocked the road",
+    emojiA: "💨", emojiB: "🌳", emojiC: "🚧"
+  }
+];
+
+// All chains combined for distractor generation
+const ALL_CHAINS = [...TRAIN_CHAINS, ...TEST_CHAINS];
+
+// Generate distractors for a given chain + step type
+function getDistractors(chain, stepType, chainPool) {
+  const others = chainPool.filter(c => c !== chain);
+  // Shuffle helper
+  const shuffle = arr => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  let correct, distractors;
+  if (stepType === 'ab') {
+    // "What happens if A?" → correct is B
+    correct = chain.b;
+    // Distractor 1: C from same chain (adjacent but wrong step)
+    // Distractor 2: B from a different chain
+    distractors = [chain.c, shuffle(others)[0].b];
+  } else if (stepType === 'bc') {
+    // "What happens if B?" → correct is C
+    correct = chain.c;
+    distractors = [chain.a, shuffle(others)[0].c];
+  } else if (stepType === 'ac') {
+    // "What happens if A?" → correct is C (derived!)
+    correct = chain.c;
+    // KEY distractor: B from same chain (intermediate step — the trap!)
+    // Other distractor: C from a different chain
+    distractors = [chain.b, shuffle(others)[0].c];
+  }
+
+  // Build options and shuffle
+  const options = shuffle([
+    { text: correct, isCorrect: true },
+    { text: distractors[0], isCorrect: false },
+    { text: distractors[1], isCorrect: false }
+  ]);
+  return options;
+}
+
+// ──────────────── CONSTANTS ────────────────
+const TRAIN_QUESTIONS_PER_CHAIN = 3; // A→B check, B→C check, A→C derive
+const TRAIN_TOTAL = TRAIN_CHAINS.length * TRAIN_QUESTIONS_PER_CHAIN; // 18
+const TEST_TOTAL = TEST_CHAINS.length * TRAIN_QUESTIONS_PER_CHAIN; // 12
+const TRAIN_MASTERY_THRESHOLD = 0.75; // 75% to unlock test
+
+// ──────────────── MAIN APP ────────────────
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null); // 'train' or 'test'
+
+  // Chain progress
+  const [chainIndex, setChainIndex] = useState(0);
+  const [chainStep, setChainStep] = useState('teachAB'); // teachAB → checkAB → teachBC → checkBC → bridge → checkAC → next
+
+  // Scoring
+  const [trainScore, setTrainScore] = useState(0);
+  const [testScore, setTestScore] = useState(0);
+  const [trainDerivationScore, setTrainDerivationScore] = useState(0);
+  const [testDerivationScore, setTestDerivationScore] = useState(0);
+
+  // Per-question state
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [answered, setAnswered] = useState(false);
+
+  // Detail tracking
+  const [responses, setResponses] = useState([]);
+
+  const currentChains = phase === 'train' ? TRAIN_CHAINS : TEST_CHAINS;
+  const currentChain = currentChains[chainIndex] || TRAIN_CHAINS[0];
+
+  // ──── Start phase ────
+  function startPhase(p) {
+    setPhase(p);
+    setChainIndex(0);
+    setChainStep('teachAB');
+    setSelected(null);
+    setShowFeedback(false);
+    setAnswered(false);
+    if (p === 'train') {
+      setTrainScore(0);
+      setTrainDerivationScore(0);
+    } else {
+      setTestScore(0);
+      setTestDerivationScore(0);
+    }
+    setScreen('game');
+  }
+
+  // ──── Generate options when entering a check step ────
+  useEffect(() => {
+    if (!['checkAB', 'checkBC', 'checkAC'].includes(chainStep)) return;
+    const chain = currentChains[chainIndex];
+    if (!chain) return;
+    const stepType = chainStep === 'checkAB' ? 'ab' : chainStep === 'checkBC' ? 'bc' : 'ac';
+    setOptions(getDistractors(chain, stepType, ALL_CHAINS));
+    setSelected(null);
+    setShowFeedback(false);
+    setAnswered(false);
+  }, [chainStep, chainIndex, phase]);
+
+  // ──── Handle answer ────
+  function handleAnswer(optionIndex) {
+    if (answered) return;
+    setSelected(optionIndex);
+    setAnswered(true);
+
+    const isCorrect = options[optionIndex].isCorrect;
+    const isTest = phase === 'test';
+    const isDerivation = chainStep === 'checkAC';
+
+    // Record response
+    const chain = currentChains[chainIndex];
+    setResponses(prev => [...prev, {
+      phase, chainIndex, chainStep, isCorrect, isDerivation,
+      chainA: chain.a, selected: options[optionIndex].text
+    }]);
+
+    // Update scores
+    if (isCorrect) {
+      if (phase === 'train') {
+        setTrainScore(s => s + 1);
+        if (isDerivation) setTrainDerivationScore(s => s + 1);
+      } else {
+        setTestScore(s => s + 1);
+        if (isDerivation) setTestDerivationScore(s => s + 1);
+      }
+    }
+
+    // Sound & feedback
+    if (isTest && isDerivation) {
+      // Test derivation: neutral feedback only
+      playSound('neutral');
+      setShowFeedback(true);
+    } else if (isTest) {
+      // Test comprehension checks: still neutral
+      playSound('neutral');
+      setShowFeedback(true);
+    } else {
+      // Training: corrective feedback
+      playSound(isCorrect ? 'correct' : 'incorrect');
+      setShowFeedback(true);
+    }
+  }
+
+  // ──── Advance to next step ────
+  function nextStep() {
+    const stepOrder = ['teachAB', 'checkAB', 'teachBC', 'checkBC', 'bridge', 'checkAC'];
+    const currentIdx = stepOrder.indexOf(chainStep);
+
+    if (currentIdx < stepOrder.length - 1) {
+      // Move to next step in this chain
+      const next = stepOrder[currentIdx + 1];
+      setChainStep(next);
+      if (next === 'bridge') playSound('chain');
+    } else {
+      // Chain complete — move to next chain or finish
+      if (chainIndex < currentChains.length - 1) {
+        setChainIndex(chainIndex + 1);
+        setChainStep('teachAB');
+        playSound('chain');
+      } else {
+        // Phase complete
+        finishPhase();
+      }
+    }
+  }
+
+  // ──── Finish phase ────
+  function finishPhase() {
+    if (phase === 'train') {
+      const localTrainScore = trainScore + (answered && options[selected]?.isCorrect ? 0 : 0);
+      // trainScore is already updated by this point via setState
+      setScreen('trainResults');
+    } else {
+      // Save session
+      var _train = trainScore;
+      var _test = testScore;
+      if (window.FrameShift) {
+        window.FrameShift.saveSession("p11", _train, TRAIN_TOTAL, _test, TEST_TOTAL, true);
+      }
+      setScreen('testResults');
+      playSound('complete');
+    }
+  }
+
+  // ──── RENDER ────
+
+  // Welcome Screen
+  if (screen === 'welcome') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="text-8xl mb-6" style={{filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))'}}>⛓️</div>
+          <h1 className="fredoka text-5xl font-bold mb-3" style={{color: '#BF360C'}}>
+            Chain Reaction
+          </h1>
+          <p className="text-xl mb-2 font-semibold" style={{color: '#E65100'}}>
+            FrameShift Program 11
+          </p>
+          <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter: 'blur(8px)'}}>
+            <p className="text-lg" style={{color: '#4E342E'}}>
+              Things cause other things, which cause <em>more</em> things!
+            </p>
+            <p className="text-base mt-3" style={{color: '#6D4C41'}}>
+              Learn what happens when one thing leads to another — and figure out the whole chain!
+            </p>
+          </div>
+          <button
+            onClick={() => startPhase('train')}
+            className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
+            style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+          >
+            Start Training ⚡
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Game Screen
+  if (screen === 'game') {
+    const chain = currentChains[chainIndex];
+    const isTest = phase === 'test';
+    const phaseLabel = isTest ? 'Test' : 'Training';
+    const totalChains = currentChains.length;
+    const progress = ((chainIndex * 6 + ['teachAB','checkAB','teachBC','checkBC','bridge','checkAC'].indexOf(chainStep)) / (totalChains * 6)) * 100;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        {/* Header */}
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full"
+              style={{background: isTest ? '#E65100' : '#FF8F00', color: 'white'}}>
+              {phaseLabel}
+            </span>
+            <span className="fredoka text-sm font-semibold" style={{color: '#BF360C'}}>
+              Chain {chainIndex + 1} of {totalChains}
+            </span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background: 'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{width: `${progress}%`, background: 'linear-gradient(90deg, #FF6D00, #FF9100)'}} />
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="w-full max-w-lg">
+          {/* TEACH A→B */}
+          {chainStep === 'teachAB' && (
+            <div className="animate-slide-up">
+              <TeachCard
+                emoji1={chain.emojiA} label1={chain.a}
+                emoji2={chain.emojiB} label2={chain.b}
+                onNext={nextStep}
+              />
+            </div>
+          )}
+
+          {/* CHECK A→B */}
+          {chainStep === 'checkAB' && (
+            <div className="animate-slide-up">
+              <QuizCard
+                question={`What happens if ${chain.a}?`}
+                emoji={chain.emojiA}
+                options={options}
+                selected={selected}
+                showFeedback={showFeedback}
+                isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer}
+                onNext={nextStep}
+                stepLabel="Check: A → B"
+              />
+            </div>
+          )}
+
+          {/* TEACH B→C */}
+          {chainStep === 'teachBC' && (
+            <div className="animate-slide-up">
+              <TeachCard
+                emoji1={chain.emojiB} label1={chain.b}
+                emoji2={chain.emojiC} label2={chain.c}
+                onNext={nextStep}
+              />
+            </div>
+          )}
+
+          {/* CHECK B→C */}
+          {chainStep === 'checkBC' && (
+            <div className="animate-slide-up">
+              <QuizCard
+                question={`What happens if ${chain.b}?`}
+                emoji={chain.emojiB}
+                options={options}
+                selected={selected}
+                showFeedback={showFeedback}
+                isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer}
+                onNext={nextStep}
+                stepLabel="Check: B → C"
+              />
+            </div>
+          )}
+
+          {/* BRIDGE — the "think about it" screen */}
+          {chainStep === 'bridge' && (
+            <div className="animate-pop text-center">
+              <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+                <div className="text-6xl mb-4">🤔</div>
+                <h2 className="fredoka text-2xl font-bold mb-4" style={{color: '#BF360C'}}>
+                  Think About It...
+                </h2>
+                <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
+                  <span className="text-3xl">{chain.emojiA}</span>
+                  <span className="fredoka text-2xl" style={{color: '#FF6D00'}}>→</span>
+                  <span className="text-3xl">{chain.emojiB}</span>
+                  <span className="fredoka text-2xl" style={{color: '#FF6D00'}}>→</span>
+                  <span className="text-3xl">{chain.emojiC}</span>
+                </div>
+                <p className="text-lg mb-2" style={{color: '#4E342E'}}>
+                  You know that <strong>if {chain.a}</strong>, then <strong>{chain.b}</strong>.
+                </p>
+                <p className="text-lg mb-6" style={{color: '#4E342E'}}>
+                  And <strong>if {chain.b}</strong>, then <strong>{chain.c}</strong>.
+                </p>
+                <p className="fredoka text-xl font-bold mb-6" style={{color: '#E65100'}}>
+                  So what happens if {chain.a}?
+                </p>
+                <button
+                  onClick={nextStep}
+                  className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+                >
+                  I Think I Know! 💡
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CHECK A→C (THE DERIVATION!) */}
+          {chainStep === 'checkAC' && (
+            <div className="animate-pop">
+              <QuizCard
+                question={`If ${chain.a}, what happens at the END of the chain?`}
+                emoji="⛓️"
+                options={options}
+                selected={selected}
+                showFeedback={showFeedback}
+                isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer}
+                onNext={nextStep}
+                stepLabel="⭐ Chain Reaction!"
+                isDerivation={true}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Training Results
+  if (screen === 'trainResults') {
+    const pct = Math.round((trainScore / TRAIN_TOTAL) * 100);
+    const passed = pct >= TRAIN_MASTERY_THRESHOLD * 100;
+    const derivPct = Math.round((trainDerivationScore / TRAIN_CHAINS.length) * 100);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+            <div className="text-6xl mb-4">{passed ? '🎉' : '🔄'}</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color: '#BF360C'}}>
+              {passed ? 'Training Complete!' : 'Keep Practicing!'}
+            </h2>
+            <div className="my-6 space-y-3">
+              <div className="bg-orange-50 rounded-xl p-4">
+                <p className="fredoka text-lg font-semibold" style={{color: '#E65100'}}>
+                  Overall: {trainScore} / {TRAIN_TOTAL} ({pct}%)
+                </p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-4">
+                <p className="fredoka text-lg font-semibold" style={{color: '#FF8F00'}}>
+                  Chain Reactions: {trainDerivationScore} / {TRAIN_CHAINS.length} ({derivPct}%)
+                </p>
+                <p className="text-sm mt-1" style={{color: '#6D4C41'}}>
+                  These are the big ones — figuring out the whole chain!
+                </p>
+              </div>
+            </div>
+            {passed ? (
+              <div>
+                <p className="text-lg mb-6" style={{color: '#4E342E'}}>
+                  You're ready for the real test with new chains!
+                </p>
+                <button
+                  onClick={() => startPhase('test')}
+                  className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #E65100, #FF6D00)', fontFamily: 'Fredoka'}}
+                >
+                  Start Test 🧪
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-lg mb-6" style={{color: '#4E342E'}}>
+                  Need {Math.round(TRAIN_MASTERY_THRESHOLD * 100)}% to unlock the test. Try again!
+                </p>
+                <button
+                  onClick={() => startPhase('train')}
+                  className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+                >
+                  Try Again ⚡
+                </button>
+              </div>
+            )}
+            <div className="mt-4">
+              <a href="index.html" className="text-sm font-semibold" style={{color: '#BF360C'}}>
+                ← Back to FrameShift
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Test Results
+  if (screen === 'testResults') {
+    const pct = Math.round((testScore / TEST_TOTAL) * 100);
+    const derivPct = Math.round((testDerivationScore / TEST_CHAINS.length) * 100);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter: 'blur(8px)'}}>
+            <div className="text-6xl mb-4">🏆</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color: '#BF360C'}}>
+              Test Complete!
+            </h2>
+            <div className="my-6 space-y-3">
+              <div className="bg-orange-50 rounded-xl p-4">
+                <p className="fredoka text-lg font-semibold" style={{color: '#E65100'}}>
+                  Overall: {testScore} / {TEST_TOTAL} ({pct}%)
+                </p>
+              </div>
+              <div className="rounded-xl p-4" style={{background: 'linear-gradient(135deg, #FFF3E0, #FFE0B2)'}}>
+                <p className="fredoka text-xl font-bold" style={{color: '#BF360C'}}>
+                  ⭐ Chain Reactions: {testDerivationScore} / {TEST_CHAINS.length} ({derivPct}%)
+                </p>
+                <p className="text-sm mt-1" style={{color: '#6D4C41'}}>
+                  Figuring out the whole chain with brand new scenarios!
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setScreen('welcome');
+                  setPhase(null);
+                  setResponses([]);
+                }}
+                className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+              >
+                Play Again 🔄
+              </button>
+              <a href="index.html"
+                className="inline-block px-8 py-3 rounded-full text-lg font-bold shadow-lg transition-all hover:scale-105"
+                style={{background: 'rgba(255,255,255,0.7)', color: '#BF360C', fontFamily: 'Fredoka'}}>
+                ← Back to FrameShift
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ──────────────── TEACH CARD ────────────────
+function TeachCard({ emoji1, label1, emoji2, label2, onNext }) {
+  return (
+    <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter: 'blur(8px)'}}>
+      <p className="fredoka text-sm font-semibold mb-4 uppercase tracking-wide" style={{color: '#FF8F00'}}>
+        Learn This Rule
+      </p>
+      <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex flex-col items-center">
+          <span className="text-5xl mb-2">{emoji1}</span>
+          <div className="bg-orange-50 rounded-xl px-4 py-2 max-w-48">
+            <p className="text-base font-semibold" style={{color: '#4E342E'}}>{label1}</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="fredoka text-4xl font-bold" style={{color: '#FF6D00'}}>→</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-5xl mb-2">{emoji2}</span>
+          <div className="bg-amber-50 rounded-xl px-4 py-2 max-w-48">
+            <p className="text-base font-semibold" style={{color: '#4E342E'}}>{label2}</p>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-xl p-4 mb-5" style={{background: 'linear-gradient(135deg, #FFF8E1, #FFF3E0)'}}>
+        <p className="text-lg" style={{color: '#5D4037'}}>
+          If <strong>{label1}</strong>, then <strong>{label2}</strong>.
+        </p>
+      </div>
+      <button
+        onClick={onNext}
+        className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+        style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+      >
+        Got It! 👍
+      </button>
+    </div>
+  );
+}
+
+// ──────────────── QUIZ CARD ────────────────
+function QuizCard({ question, emoji, options, selected, showFeedback, isTest, answered, onAnswer, onNext, stepLabel, isDerivation }) {
+  const correctIdx = options.findIndex(o => o.isCorrect);
+
+  return (
+    <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+      {stepLabel && (
+        <p className={`fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center ${isDerivation ? '' : ''}`}
+          style={{color: isDerivation ? '#BF360C' : '#FF8F00'}}>
+          {stepLabel}
+        </p>
+      )}
+      <div className="text-center mb-4">
+        <span className="text-5xl">{emoji}</span>
+      </div>
+      <p className="fredoka text-xl font-bold text-center mb-5" style={{color: '#4E342E'}}>
+        {question}
+      </p>
+
+      <div className="space-y-3 mb-4">
+        {options.map((opt, i) => {
+          let bg = 'white';
+          let border = '#E0C8A8';
+          let textColor = '#4E342E';
+          let shadow = '0 2px 6px rgba(0,0,0,0.08)';
+
+          if (showFeedback && !isTest) {
+            // Training: show correct/incorrect
+            if (i === correctIdx) {
+              bg = '#E8F5E9'; border = '#4CAF50'; textColor = '#2E7D32';
+              shadow = '0 2px 10px rgba(76,175,80,0.3)';
+            } else if (i === selected && !opt.isCorrect) {
+              bg = '#FFEBEE'; border = '#EF5350'; textColor = '#C62828';
+              shadow = '0 2px 10px rgba(239,83,80,0.3)';
+            }
+          } else if (showFeedback && isTest) {
+            // Test: just highlight selection
+            if (i === selected) {
+              bg = '#FFF3E0'; border = '#FF9800'; textColor = '#E65100';
+              shadow = '0 2px 10px rgba(255,152,0,0.3)';
+            }
+          } else if (i === selected) {
+            bg = '#FFF3E0'; border = '#FF9800';
+          }
+
+          return (
+            <button
+              key={i}
+              onClick={() => onAnswer(i)}
+              disabled={answered}
+              className="w-full text-left p-4 rounded-xl font-semibold transition-all"
+              style={{
+                background: bg,
+                border: `2px solid ${border}`,
+                color: textColor,
+                boxShadow: shadow,
+                opacity: answered && i !== selected && !(showFeedback && !isTest && i === correctIdx) ? 0.5 : 1,
+                cursor: answered ? 'default' : 'pointer',
+                transform: !answered ? undefined : undefined,
+              }}
+              onMouseEnter={e => { if (!answered) e.target.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { e.target.style.transform = ''; }}
+            >
+              {opt.text}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Feedback */}
+      {showFeedback && (
+        <div className="animate-pop">
+          {isTest ? (
+            <div className="text-center rounded-xl p-3 mb-4" style={{background: '#FFF8E1'}}>
+              <p className="fredoka font-semibold" style={{color: '#F57F17'}}>
+                Response recorded ✓
+              </p>
+            </div>
+          ) : (
+            <div className="text-center rounded-xl p-3 mb-4"
+              style={{background: options[selected]?.isCorrect ? '#E8F5E9' : '#FFF3E0'}}>
+              {options[selected]?.isCorrect ? (
+                <p className="fredoka font-semibold" style={{color: '#2E7D32'}}>
+                  {isDerivation ? '⭐ You figured out the whole chain!' : '✅ That\'s right!'}
+                </p>
+              ) : (
+                <div>
+                  <p className="fredoka font-semibold" style={{color: '#E65100'}}>
+                    Not quite — the answer is: <strong>{options[correctIdx]?.text}</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="text-center">
+            <button
+              onClick={onNext}
+              className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+              style={{background: 'linear-gradient(135deg, #FF6D00, #FF9100)', fontFamily: 'Fredoka'}}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────── RENDER ────────────────
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

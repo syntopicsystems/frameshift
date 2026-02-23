@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trait Bridge — FrameShift P13</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(135deg,#EDE7F6 0%,#D1C4E9 30%,#B39DDB 70%,#9575CD 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#4527A0;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(149,117,205,0.3)}50%{box-shadow:0 0 40px rgba(149,117,205,0.6)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+  .decor{position:fixed;opacity:0.06;font-size:80px;pointer-events:none}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div class="decor" style="top:5%;right:8%">🔍</div>
+<div class="decor" style="bottom:8%;left:5%;font-size:60px">🏷️</div>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// A = picture (emoji), B = direct trait, C = synonym trait
+const TRAIN_ITEMS = [
+  { a: "🏎️", aName: "race car",  b: "speedy",      c: "fast" },
+  { a: "🐀", aName: "rat",       b: "gross",       c: "dirty" },
+  { a: "🦊", aName: "fox",       b: "sly",         c: "clever" },
+  { a: "🐢", aName: "turtle",    b: "slow",        c: "unhurried" },
+  { a: "🦁", aName: "lion",      b: "fierce",      c: "brave" },
+  { a: "🦉", aName: "owl",       b: "wise",        c: "smart" },
+];
+
+const TEST_ITEMS = [
+  { a: "🐍", aName: "snake",     b: "sneaky",      c: "tricky" },
+  { a: "🐘", aName: "elephant",  b: "enormous",    c: "huge" },
+  { a: "🐝", aName: "bee",       b: "busy",        c: "hardworking" },
+  { a: "🦅", aName: "eagle",     b: "sharp-eyed",  c: "watchful" },
+];
+
+const ALL = [...TRAIN_ITEMS, ...TEST_ITEMS];
+
+function makeTraitOptions(correct, field, item, pool) {
+  const others = shuffle(pool.filter(x => x !== item)).slice(0, 2);
+  return shuffle([
+    { text: correct, isCorrect: true },
+    { text: others[0][field], isCorrect: false },
+    { text: others[1][field], isCorrect: false },
+  ]);
+}
+
+function makePicOptions(correct, item, pool) {
+  const others = shuffle(pool.filter(x => x !== item)).slice(0, 2);
+  return shuffle([
+    { emoji: correct.a, name: correct.aName, isCorrect: true },
+    { emoji: others[0].a, name: others[0].aName, isCorrect: false },
+    { emoji: others[1].a, name: others[1].aName, isCorrect: false },
+  ]);
+}
+
+const STEPS_PER = 3; // checkAB, checkBC, checkCA
+const TRAIN_TOTAL = TRAIN_ITEMS.length * STEPS_PER;
+const TEST_TOTAL = TEST_ITEMS.length * STEPS_PER;
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const [step, setStep] = useState('teachAB');
+  const [trainScore, setTrainScore] = useState(0);
+  const [testScore, setTestScore] = useState(0);
+  const [trainDeriv, setTrainDeriv] = useState(0);
+  const [testDeriv, setTestDeriv] = useState(0);
+  const [options, setOptions] = useState([]);
+  const [picOptions, setPicOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+
+  const items = phase === 'train' ? TRAIN_ITEMS : TEST_ITEMS;
+  const item = items[idx] || TRAIN_ITEMS[0];
+
+  useEffect(() => {
+    if (!items[idx]) return;
+    const it = items[idx];
+    if (step === 'checkAB') {
+      setOptions(makeTraitOptions(it.b, 'b', it, ALL));
+      setPicOptions([]);
+    } else if (step === 'checkBC') {
+      setOptions(makeTraitOptions(it.c, 'c', it, ALL));
+      setPicOptions([]);
+    } else if (step === 'checkCA') {
+      setOptions([]);
+      setPicOptions(makePicOptions(it, it, ALL));
+    }
+    setSelected(null); setShowFb(false); setAnswered(false);
+  }, [step, idx, phase]);
+
+  function start(p) {
+    setPhase(p); setIdx(0); setStep('teachAB');
+    setSelected(null); setShowFb(false); setAnswered(false);
+    if (p === 'train') { setTrainScore(0); setTrainDeriv(0); }
+    else { setTestScore(0); setTestDeriv(0); }
+    setScreen('game');
+  }
+
+  function handleAnswer(i) {
+    if (answered) return;
+    setSelected(i); setAnswered(true);
+    const list = step === 'checkCA' ? picOptions : options;
+    const correct = list[i].isCorrect;
+    const isDeriv = step === 'checkCA';
+    if (correct) {
+      if (phase === 'train') { setTrainScore(s=>s+1); if (isDeriv) setTrainDeriv(s=>s+1); }
+      else { setTestScore(s=>s+1); if (isDeriv) setTestDeriv(s=>s+1); }
+    }
+    playSound(phase === 'train' ? (correct ? 'correct' : 'incorrect') : 'neutral');
+    setShowFb(true);
+  }
+
+  function next() {
+    const order = ['teachAB', 'checkAB', 'teachBC', 'checkBC', 'bridge', 'checkCA'];
+    const ci = order.indexOf(step);
+    if (ci < order.length - 1) {
+      setStep(order[ci + 1]);
+    } else if (idx < items.length - 1) {
+      setIdx(idx + 1); setStep('teachAB');
+    } else {
+      if (phase === 'train') setScreen('trainRes');
+      else {
+        if (window.FrameShift) window.FrameShift.saveSession("p13", trainScore, TRAIN_TOTAL, testScore, TEST_TOTAL, true);
+        playSound('complete'); setScreen('testRes');
+      }
+    }
+  }
+
+  const progress = (() => {
+    const order = ['teachAB','checkAB','teachBC','checkBC','bridge','checkCA'];
+    return ((idx * 6 + order.indexOf(step)) / (items.length * 6)) * 100;
+  })();
+
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="text-8xl mb-6">🔗</div>
+        <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#4527A0'}}>Trait Bridge</h1>
+        <p className="text-xl mb-2 font-semibold" style={{color:'#5E35B1'}}>FrameShift Program 13</p>
+        <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+          <p className="text-lg" style={{color:'#311B92'}}>Pictures have traits. Traits have synonyms.</p>
+          <p className="text-base mt-3" style={{color:'#4527A0'}}>Can you match a synonym back to the right picture?</p>
+        </div>
+        <button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Start Training 🏷️</button>
+      </div>
+    </div>
+  );
+
+  if (screen === 'game') {
+    const it = items[idx];
+    const isTest = phase === 'test';
+    const correctIdx = step === 'checkCA' ? picOptions.findIndex(o=>o.isCorrect) : options.findIndex(o=>o.isCorrect);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:isTest?'#4527A0':'#7E57C2',color:'white'}}>{isTest?'Test':'Training'}</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#4527A0'}}>Item {idx+1} of {items.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#5E35B1,#9575CD)'}}/>
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg">
+          {/* TEACH A→B */}
+          {step === 'teachAB' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-2" style={{color:'#9575CD'}}>Picture → Trait</p>
+              <span className="text-7xl block mb-3">{it.a}</span>
+              <p className="text-lg mb-1 font-semibold" style={{color:'#311B92'}}>{it.aName}</p>
+              <div className="flex items-center justify-center gap-3 my-4">
+                <span className="fredoka text-3xl" style={{color:'#7E57C2'}}>→</span>
+                <span className="px-6 py-3 rounded-xl text-xl font-bold" style={{background:'#EDE7F6',color:'#4527A0'}}>"{it.b}"</span>
+              </div>
+              <p className="text-base mb-5" style={{color:'#5E35B1'}}>A <strong>{it.aName}</strong> is <strong>{it.b}</strong>.</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Got It! 👍</button>
+            </div>
+          )}
+
+          {/* CHECK A→B */}
+          {step === 'checkAB' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#7E57C2'}}>Picture → Trait</p>
+              <div className="text-center mb-3"><span className="text-6xl">{it.a}</span></div>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#311B92'}}>Which word describes a {it.aName}?</p>
+              <div className="space-y-3 mb-4">
+                {options.map((o,i) => {
+                  let bg='white',border='#D1C4E9',tc='#311B92';
+                  if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50';tc='#2E7D32'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350';tc='#C62828'}}
+                  else if(showFb&&isTest&&i===selected){bg='#EDE7F6';border='#7E57C2';tc='#4527A0'}
+                  return <button key={i} onClick={()=>handleAnswer(i)} disabled={answered} className="w-full p-4 rounded-xl font-semibold transition-all text-left" style={{background:bg,border:`2px solid ${border}`,color:tc,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.5:1,cursor:answered?'default':'pointer'}}>"{o.text}"</button>
+                })}
+              </div>
+              {showFb&&<FeedbackBar isTest={isTest} correct={options[selected]?.isCorrect} correctText={`"${options[correctIdx]?.text}"`} onNext={next}/>}
+            </div>
+          )}
+
+          {/* TEACH B→C */}
+          {step === 'teachBC' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-2" style={{color:'#9575CD'}}>Trait → Synonym</p>
+              <div className="flex items-center justify-center gap-4 my-4">
+                <span className="px-5 py-3 rounded-xl text-xl font-bold" style={{background:'#EDE7F6',color:'#4527A0'}}>"{it.b}"</span>
+                <span className="fredoka text-3xl" style={{color:'#7E57C2'}}>≈</span>
+                <span className="px-5 py-3 rounded-xl text-xl font-bold" style={{background:'#F3E5F5',color:'#6A1B9A'}}>"{it.c}"</span>
+              </div>
+              <p className="text-base mb-5" style={{color:'#5E35B1'}}><strong>"{it.b}"</strong> is a lot like <strong>"{it.c}"</strong>.</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Got It! 👍</button>
+            </div>
+          )}
+
+          {/* CHECK B→C */}
+          {step === 'checkBC' && (
+            <div className="animate-slide-up bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#7E57C2'}}>Trait → Synonym</p>
+              <div className="text-center mb-3"><span className="px-6 py-3 rounded-xl text-2xl font-bold inline-block" style={{background:'#EDE7F6',color:'#4527A0'}}>"{it.b}"</span></div>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#311B92'}}>Which word means the same as "{it.b}"?</p>
+              <div className="space-y-3 mb-4">
+                {options.map((o,i) => {
+                  let bg='white',border='#D1C4E9',tc='#311B92';
+                  if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50';tc='#2E7D32'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350';tc='#C62828'}}
+                  else if(showFb&&isTest&&i===selected){bg='#EDE7F6';border='#7E57C2';tc='#4527A0'}
+                  return <button key={i} onClick={()=>handleAnswer(i)} disabled={answered} className="w-full p-4 rounded-xl font-semibold transition-all text-left" style={{background:bg,border:`2px solid ${border}`,color:tc,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.5:1,cursor:answered?'default':'pointer'}}>"{o.text}"</button>
+                })}
+              </div>
+              {showFb&&<FeedbackBar isTest={isTest} correct={options[selected]?.isCorrect} correctText={`"${options[correctIdx]?.text}"`} onNext={next}/>}
+            </div>
+          )}
+
+          {/* BRIDGE */}
+          {step === 'bridge' && (
+            <div className="animate-pop bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl text-center" style={{backdropFilter:'blur(8px)'}}>
+              <div className="text-5xl mb-4">🤔</div>
+              <h2 className="fredoka text-2xl font-bold mb-4" style={{color:'#4527A0'}}>Think Backwards...</h2>
+              <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
+                <span className="text-4xl">{it.a}</span>
+                <span className="fredoka text-2xl" style={{color:'#7E57C2'}}>→</span>
+                <span className="px-3 py-1 rounded-lg font-bold" style={{background:'#EDE7F6',color:'#4527A0'}}>"{it.b}"</span>
+                <span className="fredoka text-2xl" style={{color:'#7E57C2'}}>≈</span>
+                <span className="px-3 py-1 rounded-lg font-bold" style={{background:'#F3E5F5',color:'#6A1B9A'}}>"{it.c}"</span>
+              </div>
+              <p className="fredoka text-xl font-bold mb-6" style={{color:'#5E35B1'}}>If something is "{it.c}"... which picture is it?</p>
+              <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>I Know! 💡</button>
+            </div>
+          )}
+
+          {/* CHECK C→A (pictures!) */}
+          {step === 'checkCA' && (
+            <div className="animate-pop bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+              <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center" style={{color:'#4527A0'}}>⭐ Synonym → Picture</p>
+              <div className="text-center mb-3"><span className="px-6 py-3 rounded-xl text-2xl font-bold inline-block" style={{background:'#F3E5F5',color:'#6A1B9A'}}>"{it.c}"</span></div>
+              <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#311B92'}}>Which one is "{it.c}"?</p>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {picOptions.map((o,i) => {
+                  let bg='white',border='#D1C4E9',shadow='0 2px 6px rgba(0,0,0,0.08)';
+                  const pcIdx = picOptions.findIndex(p=>p.isCorrect);
+                  if(showFb&&!isTest){if(i===pcIdx){bg='#E8F5E9';border='#4CAF50';shadow='0 2px 10px rgba(76,175,80,0.3)'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350'}}
+                  else if(showFb&&isTest&&i===selected){bg='#EDE7F6';border='#7E57C2'}
+                  return (
+                    <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                      className="p-4 rounded-2xl transition-all flex flex-col items-center"
+                      style={{background:bg,border:`3px solid ${border}`,boxShadow:shadow,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===pcIdx)?0.4:1,cursor:answered?'default':'pointer'}}>
+                      <span className="text-5xl mb-1">{o.emoji}</span>
+                      <span className="text-xs font-semibold" style={{color:'#5E35B1'}}>{o.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {showFb&&<FeedbackBar isTest={isTest} correct={picOptions[selected]?.isCorrect} correctText={picOptions[picOptions.findIndex(p=>p.isCorrect)]?.name} onNext={next} isDeriv={true}/>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'trainRes') {
+    const pct = Math.round((trainScore/TRAIN_TOTAL)*100);
+    const passed = pct >= MASTERY*100;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <div className="text-6xl mb-4">{passed?'🎉':'🔄'}</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#4527A0'}}>{passed?'Training Complete!':'Keep Practicing!'}</h2>
+            <div className="my-6 rounded-xl p-4" style={{background:'#EDE7F6'}}>
+              <p className="fredoka text-lg font-semibold" style={{color:'#5E35B1'}}>Score: {trainScore} / {TRAIN_TOTAL} ({pct}%)</p>
+              <p className="text-sm mt-2" style={{color:'#4527A0'}}>Derivations: {trainDeriv} / {TRAIN_ITEMS.length}</p>
+            </div>
+            {passed ? <button onClick={()=>start('test')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#4527A0,#5E35B1)',fontFamily:'Fredoka'}}>Start Test 🧪</button>
+            : <button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Try Again 🏷️</button>}
+            <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#4527A0'}}>← Back to FrameShift</a></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'testRes') {
+    const pct = Math.round((testScore/TEST_TOTAL)*100);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+            <div className="text-6xl mb-4">🏆</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#4527A0'}}>Test Complete!</h2>
+            <div className="my-6 rounded-xl p-4" style={{background:'#EDE7F6'}}>
+              <p className="fredoka text-lg font-semibold" style={{color:'#5E35B1'}}>Score: {testScore} / {TEST_TOTAL} ({pct}%)</p>
+              <p className="fredoka text-xl font-bold mt-2" style={{color:'#4527A0'}}>⭐ Derivations: {testDeriv} / {TEST_ITEMS.length}</p>
+            </div>
+            <button onClick={()=>{setScreen('welcome');setPhase(null)}} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+            <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#4527A0'}}>← Back to FrameShift</a></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+function FeedbackBar({isTest,correct,correctText,onNext,isDeriv}){
+  return (
+    <div className="animate-pop">
+      {isTest ? (
+        <div className="text-center rounded-xl p-3 mb-4" style={{background:'#EDE7F6'}}><p className="fredoka font-semibold" style={{color:'#5E35B1'}}>Response recorded ✓</p></div>
+      ) : (
+        <div className="text-center rounded-xl p-3 mb-4" style={{background:correct?'#E8F5E9':'#FFF3E0'}}>
+          {correct ? <p className="fredoka font-semibold" style={{color:'#2E7D32'}}>{isDeriv?'⭐ You bridged the trait to the picture!':'✅ Right!'}</p>
+          : <p className="fredoka font-semibold" style={{color:'#E65100'}}>Not quite — it was: <strong>{correctText}</strong></p>}
+        </div>
+      )}
+      <div className="text-center"><button onClick={onNext} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#5E35B1,#7E57C2)',fontFamily:'Fredoka'}}>Next →</button></div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>,document.getElementById('root'));
+</script>
+</body>
+</html>

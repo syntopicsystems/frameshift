@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Same or Different — FrameShift P19</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(145deg,#FFF3E0 0%,#FFE0B2 25%,#FFCC80 50%,#FFB74D 75%,#FFA726 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#E65100;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(255,167,38,0.3)}50%{box-shadow:0 0 40px rgba(255,167,38,0.6)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+/*
+  Each set has two equivalence classes:
+  Class 1: A, B  (share feature/function)
+  Class 2: C, D  (share feature/function)
+  
+  Training (same/diff):
+    A-B → same, A-C → different
+    C-D → same, C-A → different
+  
+  Test (derived same/diff):
+    D-B → different (novel pairing)
+    D-C → same (novel direction)
+  
+  Test (odd-one-out):
+    {A, B, D} → D doesn't belong (class 1 + intruder from class 2)
+    {C, D, B} → B doesn't belong (class 2 + intruder from class 1)
+*/
+
+const TRAIN_SETS = [
+  {
+    class1Label: "Animals", class2Label: "Tools",
+    A: {e:"🐔",n:"chicken"}, B: {e:"🐄",n:"cow"},
+    C: {e:"✂️",n:"scissors"}, D: {e:"📄",n:"paper"},
+    whySame1: "Both are animals!", whySame2: "Both are things you use at a desk!",
+  },
+  {
+    class1Label: "Vehicles", class2Label: "Furniture",
+    A: {e:"🚗",n:"car"}, B: {e:"🚌",n:"bus"},
+    C: {e:"🪑",n:"chair"}, D: {e:"🛋️",n:"couch"},
+    whySame1: "Both are vehicles that drive on roads!", whySame2: "Both are furniture you sit on!",
+  },
+  {
+    class1Label: "Fruits", class2Label: "Clothing",
+    A: {e:"🍎",n:"apple"}, B: {e:"🍌",n:"banana"},
+    C: {e:"👕",n:"shirt"}, D: {e:"👖",n:"pants"},
+    whySame1: "Both are fruits you eat!", whySame2: "Both are clothes you wear!",
+  },
+  {
+    class1Label: "Musical", class2Label: "Sports",
+    A: {e:"🎸",n:"guitar"}, B: {e:"🎹",n:"piano"},
+    C: {e:"⚽",n:"soccer ball"}, D: {e:"🏀",n:"basketball"},
+    whySame1: "Both are musical instruments!", whySame2: "Both are balls you play sports with!",
+  },
+];
+
+const TEST_SETS = [
+  {
+    class1Label: "Water animals", class2Label: "Sky things",
+    A: {e:"🐟",n:"fish"}, B: {e:"🐙",n:"octopus"},
+    C: {e:"☁️",n:"cloud"}, D: {e:"✈️",n:"airplane"},
+    whySame1: "Both live in water!", whySame2: "Both are found in the sky!",
+  },
+  {
+    class1Label: "Hot things", class2Label: "Cold things",
+    A: {e:"🔥",n:"fire"}, B: {e:"☀️",n:"sun"},
+    C: {e:"❄️",n:"snowflake"}, D: {e:"🧊",n:"ice cube"},
+    whySame1: "Both are hot!", whySame2: "Both are cold!",
+  },
+  {
+    class1Label: "Writing tools", class2Label: "Kitchen items",
+    A: {e:"✏️",n:"pencil"}, B: {e:"🖊️",n:"pen"},
+    C: {e:"🍳",n:"frying pan"}, D: {e:"🥄",n:"spoon"},
+    whySame1: "Both are things you write with!", whySame2: "Both are used in the kitchen!",
+  },
+];
+
+// Build trial sequences
+function buildTrainTrials(set) {
+  return [
+    // A-B same, A-C different
+    { item1: set.A, item2: set.B, answer: 'same', explain: set.whySame1, label: 'Train' },
+    { item1: set.A, item2: set.C, answer: 'different', explain: `A ${set.A.n} is an ${set.class1Label.toLowerCase()} thing, but ${set.C.n} is a ${set.class2Label.toLowerCase()} thing.`, label: 'Train' },
+    // C-D same, C-A different
+    { item1: set.C, item2: set.D, answer: 'same', explain: set.whySame2, label: 'Train' },
+    { item1: set.C, item2: set.A, answer: 'different', explain: `${set.C.n} is a ${set.class2Label.toLowerCase()} thing, but ${set.A.n} is an ${set.class1Label.toLowerCase()} thing.`, label: 'Train' },
+  ];
+}
+
+function buildTestSameDiffTrials(set) {
+  return [
+    // D-B different (derived), D-C same (derived direction)
+    { item1: set.D, item2: set.B, answer: 'different', label: 'Test' },
+    { item1: set.D, item2: set.C, answer: 'same', label: 'Test' },
+  ];
+}
+
+function buildOddOneOutTrials(set) {
+  return [
+    // {A, B, D} → D doesn't belong
+    { items: shuffle([
+      { ...set.A, belongs: true }, { ...set.B, belongs: true }, { ...set.D, belongs: false }
+    ]), groupLabel: set.class1Label, oddLabel: set.class2Label, label: 'Odd One Out' },
+    // {C, D, B} → B doesn't belong
+    { items: shuffle([
+      { ...set.C, belongs: true }, { ...set.D, belongs: true }, { ...set.B, belongs: false }
+    ]), groupLabel: set.class2Label, oddLabel: set.class1Label, label: 'Odd One Out' },
+  ];
+}
+
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null); // train, test_sd, test_odd
+  const [trials, setTrials] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [scores, setScores] = useState({ train: 0, trainTotal: 0, testSd: 0, testSdTotal: 0, testOdd: 0, testOddTotal: 0 });
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+
+  function startPhase(p) {
+    setPhase(p); setIdx(0); setSelected(null); setShowFb(false); setAnswered(false);
+    let t = [];
+    if (p === 'train') {
+      TRAIN_SETS.forEach(s => t.push(...buildTrainTrials(s)));
+      setScores(prev => ({ ...prev, train: 0, trainTotal: t.length }));
+    } else if (p === 'test_sd') {
+      TEST_SETS.forEach(s => t.push(...buildTestSameDiffTrials(s)));
+      setScores(prev => ({ ...prev, testSd: 0, testSdTotal: t.length }));
+    } else if (p === 'test_odd') {
+      TEST_SETS.forEach(s => t.push(...buildOddOneOutTrials(s)));
+      setScores(prev => ({ ...prev, testOdd: 0, testOddTotal: t.length }));
+    }
+    setTrials(t);
+    setScreen('game');
+  }
+
+  function handleSameDiff(choice) {
+    if (answered) return;
+    setSelected(choice); setAnswered(true);
+    const trial = trials[idx];
+    const correct = choice === trial.answer;
+    if (correct) {
+      if (phase === 'train') setScores(s => ({ ...s, train: s.train + 1 }));
+      else setScores(s => ({ ...s, testSd: s.testSd + 1 }));
+    }
+    playSound(phase === 'train' ? (correct ? 'correct' : 'incorrect') : 'neutral');
+    setShowFb(true);
+  }
+
+  function handleOddPick(i) {
+    if (answered) return;
+    setSelected(i); setAnswered(true);
+    const trial = trials[idx];
+    const correct = !trial.items[i].belongs;
+    if (correct) setScores(s => ({ ...s, testOdd: s.testOdd + 1 }));
+    playSound('neutral');
+    setShowFb(true);
+  }
+
+  function next() {
+    if (idx < trials.length - 1) {
+      setIdx(idx + 1); setSelected(null); setShowFb(false); setAnswered(false);
+    } else {
+      if (phase === 'train') setScreen('trainRes');
+      else if (phase === 'test_sd') setScreen('testSdRes');
+      else {
+        if (window.FrameShift) {
+          window.FrameShift.saveSession("p19", scores.train, scores.trainTotal, scores.testSd + scores.testOdd, scores.testSdTotal + scores.testOddTotal, true);
+        }
+        playSound('complete'); setScreen('finalRes');
+      }
+    }
+  }
+
+  const progress = trials.length > 0 ? ((idx + (answered ? 0.5 : 0)) / trials.length) * 100 : 0;
+
+  // ═══════ WELCOME ═══════
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="text-8xl mb-6">🔀</div>
+      <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#BF360C'}}>Same or Different</h1>
+      <p className="text-xl mb-2 font-semibold" style={{color:'#E65100'}}>FrameShift Program 19</p>
+      <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+        <p className="text-lg" style={{color:'#BF360C'}}>Some things go together. Some don't.</p>
+        <p className="text-base mt-3" style={{color:'#E65100'}}>Learn which groups things belong to — then spot the odd one out!</p>
+      </div>
+      <button onClick={()=>startPhase('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#E65100,#FF6D00)',fontFamily:'Fredoka'}}>Start Training 🔀</button>
+    </div></div>
+  );
+
+  // ═══════ GAME: Same/Different ═══════
+  if (screen === 'game' && (phase === 'train' || phase === 'test_sd')) {
+    const trial = trials[idx];
+    if (!trial) return null;
+    const isTest = phase === 'test_sd';
+    const isCorrect = selected === trial.answer;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:isTest?'#BF360C':'#FF6D00',color:'white'}}>{isTest?'Test':'Training'}</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#BF360C'}}>Pair {idx+1} of {trials.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#E65100,#FFB74D)'}}/>
+          </div>
+        </div>
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <p className="fredoka text-lg font-bold text-center mb-5" style={{color:'#BF360C'}}>
+              Are these the same kind of thing, or different?
+            </p>
+
+            {/* Two items side by side */}
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <div className="text-center">
+                <span className="text-7xl block mb-2">{trial.item1.e}</span>
+                <p className="fredoka text-base font-bold" style={{color:'#5D4037'}}>{trial.item1.n}</p>
+              </div>
+              <span className="fredoka text-4xl" style={{color:'#FFB74D'}}>?</span>
+              <div className="text-center">
+                <span className="text-7xl block mb-2">{trial.item2.e}</span>
+                <p className="fredoka text-base font-bold" style={{color:'#5D4037'}}>{trial.item2.n}</p>
+              </div>
+            </div>
+
+            {/* Same / Different buttons */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {['same', 'different'].map(choice => {
+                let bg = 'white', border = '#FFE0B2', tc = '#BF360C', shadow = '0 2px 8px rgba(0,0,0,0.08)';
+                if (showFb && !isTest) {
+                  if (choice === trial.answer) { bg = '#E8F5E9'; border = '#4CAF50'; tc = '#2E7D32'; shadow = '0 2px 12px rgba(76,175,80,0.3)'; }
+                  else if (choice === selected) { bg = '#FFEBEE'; border = '#EF5350'; tc = '#C62828'; }
+                } else if (showFb && isTest && choice === selected) {
+                  bg = '#FFF3E0'; border = '#FF6D00'; tc = '#BF360C';
+                }
+                return (
+                  <button key={choice} onClick={() => handleSameDiff(choice)} disabled={answered}
+                    className="p-5 rounded-2xl transition-all flex flex-col items-center"
+                    style={{background:bg,border:`3px solid ${border}`,color:tc,boxShadow:shadow,
+                      opacity:answered && choice!==selected && !(showFb&&!isTest&&choice===trial.answer)?0.4:1,
+                      cursor:answered?'default':'pointer'}}>
+                    <span className="text-4xl mb-1">{choice === 'same' ? '🤝' : '↔️'}</span>
+                    <span className="fredoka text-xl font-bold">{choice === 'same' ? 'Same!' : 'Different!'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {showFb && (
+              <div className="animate-pop">
+                {isTest ? (
+                  <div className="text-center rounded-xl p-3 mb-4" style={{background:'#FFF3E0'}}>
+                    <p className="fredoka font-semibold" style={{color:'#E65100'}}>Response recorded ✓</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl p-4 mb-4" style={{background:isCorrect?'#E8F5E9':'#FFF3E0'}}>
+                    <p className="fredoka font-semibold text-center" style={{color:isCorrect?'#2E7D32':'#E65100'}}>
+                      {isCorrect ? (trial.answer === 'same' ? '✅ Yes, they go together!' : '✅ Right, they\'re different!') :
+                        (trial.answer === 'same' ? 'Actually, they\'re the SAME kind!' : 'Actually, they\'re DIFFERENT kinds!')}
+                    </p>
+                    {trial.explain && <p className="text-sm mt-2 text-center" style={{color:'#5D4037'}}>{trial.explain}</p>}
+                  </div>
+                )}
+                <div className="text-center"><button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#E65100,#FF6D00)',fontFamily:'Fredoka'}}>Next →</button></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════ GAME: Odd One Out ═══════
+  if (screen === 'game' && phase === 'test_odd') {
+    const trial = trials[idx];
+    if (!trial) return null;
+    const oddIdx = trial.items.findIndex(it => !it.belongs);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:'#BF360C',color:'white'}}>Test — Odd One Out</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#BF360C'}}>Group {idx+1} of {trials.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#E65100,#FFB74D)'}}/>
+          </div>
+        </div>
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <p className="fredoka text-xl font-bold text-center mb-5" style={{color:'#BF360C'}}>
+              Which one does NOT belong?
+            </p>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {trial.items.map((it, i) => {
+                let bg='white',border='#FFE0B2',shadow='0 2px 8px rgba(0,0,0,0.08)';
+                if (showFb) {
+                  if (i === oddIdx) { bg='#FFEBEE'; border='#EF5350'; shadow='0 2px 12px rgba(239,83,80,0.3)'; }
+                  else if (i === selected && it.belongs) { bg='#FFF3E0'; border='#FF6D00'; }
+                  else { bg='#E8F5E9'; border='#4CAF50'; }
+                }
+                return (
+                  <button key={i} onClick={() => handleOddPick(i)} disabled={answered}
+                    className="p-5 rounded-2xl transition-all flex flex-col items-center"
+                    style={{background:bg,border:`3px solid ${border}`,boxShadow:shadow,
+                      cursor:answered?'default':'pointer'}}>
+                    <span className="text-5xl mb-1">{it.e}</span>
+                    <span className="text-xs font-semibold" style={{color:'#5D4037'}}>{it.n}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {showFb && (
+              <div className="animate-pop">
+                <div className="text-center rounded-xl p-3 mb-4" style={{background:'#FFF3E0'}}>
+                  <p className="fredoka font-semibold" style={{color:'#E65100'}}>Response recorded ✓</p>
+                  <p className="text-sm mt-1" style={{color:'#5D4037'}}>
+                    <strong>{trial.items[oddIdx].n}</strong> doesn't belong — it's a {trial.oddLabel.toLowerCase()} thing, not {trial.groupLabel.toLowerCase()}!
+                  </p>
+                </div>
+                <div className="text-center"><button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#E65100,#FF6D00)',fontFamily:'Fredoka'}}>Next →</button></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════ RESULTS SCREENS ═══════
+  if (screen === 'trainRes') {
+    const pct = Math.round((scores.train / scores.trainTotal) * 100);
+    const passed = pct >= MASTERY * 100;
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">{passed ? '🎉' : '🔄'}</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#BF360C'}}>{passed ? 'Training Complete!' : 'Keep Sorting!'}</h2>
+        <div className="my-6 rounded-xl p-4" style={{background:'#FFF3E0'}}>
+          <p className="fredoka text-lg font-semibold" style={{color:'#E65100'}}>Score: {scores.train}/{scores.trainTotal} ({pct}%)</p>
+        </div>
+        {passed ? (
+          <div>
+            <p className="text-base mb-4" style={{color:'#5D4037'}}>Now — new items you haven't seen paired together!</p>
+            <button onClick={() => startPhase('test_sd')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#BF360C,#E65100)',fontFamily:'Fredoka'}}>Start Test 🧪</button>
+          </div>
+        ) : (
+          <button onClick={() => startPhase('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#E65100,#FF6D00)',fontFamily:'Fredoka'}}>Try Again 🔀</button>
+        )}
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#E65100'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  if (screen === 'testSdRes') {
+    const pct = Math.round((scores.testSd / scores.testSdTotal) * 100);
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-5xl mb-4">🔍</div>
+        <h2 className="fredoka text-2xl font-bold mb-2" style={{color:'#BF360C'}}>Same/Different Test Done!</h2>
+        <div className="my-4 rounded-xl p-4" style={{background:'#FFF3E0'}}>
+          <p className="fredoka text-lg font-semibold" style={{color:'#E65100'}}>Derived Relations: {scores.testSd}/{scores.testSdTotal} ({pct}%)</p>
+        </div>
+        <p className="text-base mb-4" style={{color:'#5D4037'}}>Next: Can you spot which one doesn't belong in a group?</p>
+        <button onClick={() => startPhase('test_odd')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#BF360C,#E65100)',fontFamily:'Fredoka'}}>Odd One Out! 🔍</button>
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#E65100'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  if (screen === 'finalRes') {
+    const sdPct = Math.round((scores.testSd / scores.testSdTotal) * 100);
+    const oddPct = Math.round((scores.testOdd / scores.testOddTotal) * 100);
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">🏆</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#BF360C'}}>All Done!</h2>
+        <div className="my-6 space-y-3">
+          <div className="rounded-xl p-4" style={{background:'#FFF3E0'}}>
+            <p className="fredoka text-base font-semibold" style={{color:'#E65100'}}>Same/Different (derived): {scores.testSd}/{scores.testSdTotal} ({sdPct}%)</p>
+          </div>
+          <div className="rounded-xl p-4" style={{background:'linear-gradient(135deg,#FFF3E0,#FFE0B2)',border:'2px solid #FFA726'}}>
+            <p className="fredoka text-xl font-bold" style={{color:'#BF360C'}}>⭐ Odd One Out: {scores.testOdd}/{scores.testOddTotal} ({oddPct}%)</p>
+          </div>
+        </div>
+        <button onClick={() => { setScreen('welcome'); setPhase(null); }} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#E65100,#FF6D00)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#E65100'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  return null;
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

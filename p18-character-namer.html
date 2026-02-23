@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Namer — FrameShift P18</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(145deg,#F3E5F5 0%,#E1BEE7 25%,#CE93D8 50%,#BA68C8 75%,#AB47BC 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#6A1B9A;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(171,71,188,0.3)}50%{box-shadow:0 0 40px rgba(171,71,188,0.6)}}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+  .animate-bounce{animation:bounce 1s ease-in-out infinite}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// Each character: emoji, what it is, key trait, good name, distractor names
+const TRAIN_CHARS = [
+  { emoji: "🧸", what: "teddy bear",   trait: "soft and fluffy",     goodName: "Mr. Fluffums",   wrongs: ["Spike", "Rocky"] },
+  { emoji: "🐰", what: "rabbit",        trait: "bouncy and jumpy",    goodName: "Hoppy",          wrongs: ["Slowpoke", "Stomper"] },
+  { emoji: "🐘", what: "elephant",      trait: "big nose / trunk",    goodName: "Snouty",         wrongs: ["Tiny", "Whiskers"] },
+  { emoji: "🦁", what: "lion",          trait: "furry and fierce",    goodName: "Furrocious",     wrongs: ["Silky", "Peaceful"] },
+  { emoji: "🐢", what: "turtle",        trait: "slow and steady",     goodName: "Shelldon",       wrongs: ["Speedy", "Flappy"] },
+  { emoji: "🦉", what: "owl",           trait: "wise and watchful",   goodName: "Professor Hoot", wrongs: ["Silly Sam", "Buzzy"] },
+  { emoji: "🐸", what: "frog",          trait: "green and jumpy",     goodName: "Ribbit Ron",     wrongs: ["Dry Dusty", "Feathers"] },
+  { emoji: "🦊", what: "fox",           trait: "clever and sneaky",   goodName: "Trixie",         wrongs: ["Honest Abe", "Bumbles"] },
+];
+
+const TEST_MC_CHARS = [
+  { emoji: "🐙", what: "octopus",       trait: "eight wiggly arms",   goodName: "Twisty",         wrongs: ["Stumpy", "Wings"] },
+  { emoji: "🦩", what: "flamingo",      trait: "pink and stands on one leg", goodName: "Pinky Ballerina", wrongs: ["Gray Sprinter", "Muddy"] },
+  { emoji: "🐌", what: "snail",         trait: "slow with a shell home", goodName: "Homey Slowsworth", wrongs: ["Dash", "Shelly Speed"] },
+  { emoji: "🦜", what: "parrot",        trait: "colorful and talks a lot", goodName: "Chatty Rainbow", wrongs: ["Quiet Gray", "Silent"] },
+];
+
+const TEST_GEN_CHARS = [
+  { emoji: "🐍", what: "snake",         trait: "long, slithery, and hissy",  hint: "Think about how it moves or sounds" },
+  { emoji: "🦈", what: "shark",         trait: "big teeth and swims fast",   hint: "Think about its teeth or speed" },
+  { emoji: "🐝", what: "bee",           trait: "buzzes and makes honey",     hint: "Think about the sound it makes or what it creates" },
+  { emoji: "🦀", what: "crab",          trait: "pinchy claws and walks sideways", hint: "Think about its claws or how it moves" },
+];
+
+const TRAIN_TOTAL = TRAIN_CHARS.length;
+const TEST_MC_TOTAL = TEST_MC_CHARS.length;
+const TEST_GEN_TOTAL = TEST_GEN_CHARS.length;
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null); // train, test_mc, test_gen
+  const [idx, setIdx] = useState(0);
+  const [trainScore, setTrainScore] = useState(0);
+  const [testMcScore, setTestMcScore] = useState(0);
+  const [genScores, setGenScores] = useState([]);
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+  const [childResp, setChildResp] = useState('');
+  const [genScored, setGenScored] = useState(false);
+
+  const getItems = () => phase === 'train' ? TRAIN_CHARS : phase === 'test_mc' ? TEST_MC_CHARS : TEST_GEN_CHARS;
+  const items = getItems();
+  const item = items[idx];
+
+  useEffect(() => {
+    if (phase === 'test_gen') return;
+    const its = getItems();
+    if (!its[idx]) return;
+    const it = its[idx];
+    setOptions(shuffle([
+      { text: it.goodName, isCorrect: true },
+      ...it.wrongs.map(w => ({ text: w, isCorrect: false }))
+    ]));
+    setSelected(null); setShowFb(false); setAnswered(false);
+  }, [idx, phase]);
+
+  function start(p) {
+    setPhase(p); setIdx(0);
+    setSelected(null); setShowFb(false); setAnswered(false);
+    setChildResp(''); setGenScored(false);
+    if (p === 'train') setTrainScore(0);
+    else if (p === 'test_mc') setTestMcScore(0);
+    else setGenScores([]);
+    setScreen('game');
+  }
+
+  function handleAnswer(i) {
+    if (answered) return;
+    setSelected(i); setAnswered(true);
+    const correct = options[i].isCorrect;
+    if (correct) { if (phase === 'train') setTrainScore(s=>s+1); else setTestMcScore(s=>s+1); }
+    playSound(phase === 'train' ? (correct ? 'correct' : 'incorrect') : 'neutral');
+    setShowFb(true);
+  }
+
+  function handleGenScore(score) {
+    setGenScores(prev => [...prev, { char: items[idx], score, response: childResp }]);
+    setGenScored(true); playSound('neutral');
+  }
+
+  function next() {
+    if (idx < items.length - 1) { setIdx(idx + 1); setChildResp(''); setGenScored(false); }
+    else {
+      if (phase === 'train') setScreen('trainRes');
+      else if (phase === 'test_mc') setScreen('testMcRes');
+      else {
+        const gc = genScores.filter(g=>g.score==='correct').length;
+        if (window.FrameShift) window.FrameShift.saveSession("p18",trainScore,TRAIN_TOTAL,testMcScore+gc,TEST_MC_TOTAL+TEST_GEN_TOTAL,true);
+        playSound('complete'); setScreen('finalRes');
+      }
+    }
+  }
+
+  const progress = ((idx + (answered || genScored ? 0.5 : 0)) / items.length) * 100;
+
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="text-8xl mb-6 animate-bounce">🎨</div>
+      <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#4A148C'}}>Character Namer</h1>
+      <p className="text-xl mb-2 font-semibold" style={{color:'#6A1B9A'}}>FrameShift Program 18</p>
+      <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+        <p className="text-lg" style={{color:'#4A148C'}}>Every character needs a name that fits!</p>
+        <p className="text-base mt-3" style={{color:'#6A1B9A'}}>A fluffy bear might be "Mr. Fluffums" — can you come up with great names?</p>
+      </div>
+      <button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#6A1B9A,#8E24AA)',fontFamily:'Fredoka'}}>Start Training 🎨</button>
+    </div></div>
+  );
+
+  // MC game (train + test_mc)
+  if (screen === 'game' && (phase === 'train' || phase === 'test_mc')) {
+    const it = item;
+    const isTest = phase === 'test_mc';
+    const correctIdx = options.findIndex(o => o.isCorrect);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:isTest?'#4A148C':'#8E24AA',color:'white'}}>{isTest?'Test':'Training'}</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#4A148C'}}>Character {idx+1} of {items.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#6A1B9A,#CE93D8)'}}/>
+          </div>
+        </div>
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <div className="text-center mb-3">
+              <span className="text-8xl block mb-2">{it.emoji}</span>
+              <p className="fredoka text-lg font-bold" style={{color:'#4A148C'}}>A {it.what}</p>
+              <p className="text-base mt-1" style={{color:'#6A1B9A'}}>This one is <strong>{it.trait}</strong></p>
+            </div>
+
+            <p className="fredoka text-xl font-bold text-center mb-4" style={{color:'#4A148C'}}>Which name fits best?</p>
+
+            <div className="space-y-3 mb-4">
+              {options.map((o, i) => {
+                let bg='white',border='#E1BEE7',tc='#4A148C';
+                if(showFb&&!isTest){if(i===correctIdx){bg='#E8F5E9';border='#4CAF50';tc='#2E7D32'}else if(i===selected&&!o.isCorrect){bg='#FFEBEE';border='#EF5350';tc='#C62828'}}
+                else if(showFb&&isTest&&i===selected){bg='#F3E5F5';border='#AB47BC';tc='#4A148C'}
+                return <button key={i} onClick={()=>handleAnswer(i)} disabled={answered}
+                  className="w-full p-4 rounded-xl font-bold text-lg transition-all text-center"
+                  style={{background:bg,border:`2px solid ${border}`,color:tc,opacity:answered&&i!==selected&&!(showFb&&!isTest&&i===correctIdx)?0.5:1,cursor:answered?'default':'pointer',fontFamily:'Fredoka'}}>
+                  {o.text}
+                </button>
+              })}
+            </div>
+
+            {showFb && (
+              <div className="animate-pop">
+                {isTest ? (
+                  <div className="text-center rounded-xl p-3 mb-4" style={{background:'#F3E5F5'}}>
+                    <p className="fredoka font-semibold" style={{color:'#6A1B9A'}}>Response recorded ✓</p>
+                  </div>
+                ) : (
+                  <div className="text-center rounded-xl p-4 mb-4" style={{background:options[selected]?.isCorrect?'#E8F5E9':'#FFF3E0'}}>
+                    {options[selected]?.isCorrect ?
+                      <div><p className="fredoka font-semibold" style={{color:'#2E7D32'}}>✅ Great pick!</p>
+                      <p className="text-sm mt-1" style={{color:'#33691E'}}>"{it.goodName}" fits because the {it.what} is {it.trait}!</p></div> :
+                      <div><p className="fredoka font-semibold" style={{color:'#E65100'}}>Best name: <strong>"{it.goodName}"</strong></p>
+                      <p className="text-sm mt-1" style={{color:'#5D4037'}}>It fits because the {it.what} is {it.trait}!</p></div>}
+                  </div>
+                )}
+                <div className="text-center"><button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#6A1B9A,#8E24AA)',fontFamily:'Fredoka'}}>Next →</button></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generation game
+  if (screen === 'game' && phase === 'test_gen') {
+    const it = item;
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:'#4A148C',color:'white'}}>Test — Create</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#4A148C'}}>Character {idx+1} of {items.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#6A1B9A,#CE93D8)'}}/>
+          </div>
+        </div>
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            <p className="fredoka text-sm font-bold uppercase tracking-wider mb-2 text-center" style={{color:'#4A148C'}}>⭐ Invent a Name!</p>
+            <div className="text-center mb-3">
+              <span className="text-8xl block mb-2">{it.emoji}</span>
+              <p className="fredoka text-lg font-bold" style={{color:'#4A148C'}}>A {it.what}</p>
+              <p className="text-base mt-1" style={{color:'#6A1B9A'}}>This one is <strong>{it.trait}</strong></p>
+            </div>
+
+            <div className="rounded-xl p-4 mb-4" style={{background:'linear-gradient(135deg,#F3E5F5,#E1BEE7)'}}>
+              <p className="fredoka text-xl font-bold text-center" style={{color:'#4A148C'}}>
+                What would you name this {it.what}?
+              </p>
+              <p className="text-sm text-center mt-2" style={{color:'#6A1B9A'}}>💡 {it.hint}</p>
+            </div>
+
+            <div className="rounded-2xl p-4 mb-4" style={{background:'#FFF8E1',border:'2px dashed #FFB74D'}}>
+              <p className="fredoka text-sm font-bold mb-3" style={{color:'#E65100'}}>🧑‍🏫 Caregiver: Write the name the child invents</p>
+              <input type="text" value={childResp} onChange={e=>setChildResp(e.target.value)} disabled={genScored}
+                placeholder="Type the character name..."
+                className="w-full p-3 rounded-xl text-lg border-2 focus:outline-none text-center font-bold"
+                style={{borderColor:genScored?'#C8E6C9':'#FFB74D',background:genScored?'#F1F8E9':'white',color:'#4A148C',fontFamily:'Fredoka'}}/>
+
+              {!genScored && childResp.trim().length > 0 && (
+                <div className="mt-4 animate-pop">
+                  <p className="text-sm font-semibold mb-1" style={{color:'#BF360C'}}>Does the name connect to the character's traits?</p>
+                  <p className="text-xs mb-3" style={{color:'#8D6E63'}}>Good names use the character's looks, sounds, or behavior (e.g., "{it.trait}")</p>
+                  <div className="flex gap-2">
+                    <button onClick={()=>handleGenScore('correct')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#4CAF50',fontFamily:'Fredoka'}}>✅ Creative!</button>
+                    <button onClick={()=>handleGenScore('partial')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#FF9800',fontFamily:'Fredoka'}}>🟡 Okay</button>
+                    <button onClick={()=>handleGenScore('incorrect')} className="flex-1 py-3 rounded-xl font-bold text-white hover:scale-105 transition-all" style={{background:'#EF5350',fontFamily:'Fredoka'}}>❌ Random</button>
+                  </div>
+                </div>
+              )}
+              {!genScored && childResp.trim().length === 0 && (
+                <button onClick={()=>{setChildResp('(no response)');handleGenScore('incorrect')}} className="mt-3 px-4 py-2 rounded-lg text-sm font-semibold" style={{background:'#FFEBEE',color:'#C62828',fontFamily:'Fredoka'}}>No Response</button>
+              )}
+            </div>
+
+            {genScored && (
+              <div className="animate-pop text-center">
+                <div className="rounded-xl p-3 mb-4" style={{background:'#F3E5F5'}}>
+                  <p className="fredoka font-semibold" style={{color:'#6A1B9A'}}>Name recorded! ✓</p>
+                  <p className="fredoka text-lg mt-1" style={{color:'#4A148C'}}>"{childResp}" the {item.what}!</p>
+                </div>
+                <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#6A1B9A,#8E24AA)',fontFamily:'Fredoka'}}>Next →</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'trainRes') {
+    const pct = Math.round((trainScore/TRAIN_TOTAL)*100); const passed = pct >= MASTERY*100;
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">{passed?'🎉':'🔄'}</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#4A148C'}}>{passed?'Training Complete!':'Keep Naming!'}</h2>
+        <div className="my-6 rounded-xl p-4" style={{background:'#F3E5F5'}}><p className="fredoka text-lg font-semibold" style={{color:'#6A1B9A'}}>Score: {trainScore}/{TRAIN_TOTAL} ({pct}%)</p></div>
+        {passed?<button onClick={()=>start('test_mc')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#4A148C,#6A1B9A)',fontFamily:'Fredoka'}}>Start Test 🧪</button>
+        :<button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#6A1B9A,#8E24AA)',fontFamily:'Fredoka'}}>Try Again 🎨</button>}
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#6A1B9A'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  if (screen === 'testMcRes') {
+    const pct = Math.round((testMcScore/TEST_MC_TOTAL)*100);
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-5xl mb-4">🌟</div>
+        <h2 className="fredoka text-2xl font-bold mb-2" style={{color:'#4A148C'}}>Multiple Choice Done!</h2>
+        <div className="my-4 rounded-xl p-4" style={{background:'#F3E5F5'}}><p className="fredoka text-lg font-semibold" style={{color:'#6A1B9A'}}>Recognition: {testMcScore}/{TEST_MC_TOTAL} ({pct}%)</p></div>
+        <div className="rounded-2xl p-5 mb-6" style={{background:'#FFF8E1',border:'2px solid #FFB74D'}}>
+          <p className="fredoka text-lg font-bold mb-2" style={{color:'#E65100'}}>🧑‍🏫 Next: Invent Names!</p>
+          <p className="text-sm" style={{color:'#BF360C'}}>New characters — the child makes up their own creative name. No choices!</p>
+        </div>
+        <button onClick={()=>start('test_gen')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#4A148C,#6A1B9A)',fontFamily:'Fredoka'}}>Start Creating 🌟</button>
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#6A1B9A'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+
+  if (screen === 'finalRes') {
+    const mcPct = Math.round((testMcScore/TEST_MC_TOTAL)*100);
+    const gc = genScores.filter(g=>g.score==='correct').length;
+    const gp = genScores.filter(g=>g.score==='partial').length;
+    return <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+      <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+        <div className="text-6xl mb-4">🏆</div>
+        <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#4A148C'}}>All Done!</h2>
+        <div className="my-6 space-y-3">
+          <div className="rounded-xl p-3" style={{background:'#F3E5F5'}}><p className="fredoka text-base font-semibold" style={{color:'#6A1B9A'}}>Recognition: {testMcScore}/{TEST_MC_TOTAL} ({mcPct}%)</p></div>
+          <div className="rounded-xl p-4" style={{background:'linear-gradient(135deg,#F3E5F5,#E1BEE7)',border:'2px solid #BA68C8'}}>
+            <p className="fredoka text-xl font-bold" style={{color:'#4A148C'}}>⭐ Creation: {gc}/{TEST_GEN_TOTAL}</p>
+            {gp>0&&<p className="text-sm mt-1" style={{color:'#6A1B9A'}}>+ {gp} partial</p>}
+          </div>
+        </div>
+        {genScores.length>0&&<div className="text-left rounded-xl p-4 mb-4" style={{background:'#F3E5F5'}}>
+          <p className="fredoka text-sm font-bold mb-2" style={{color:'#6A1B9A'}}>Names Created:</p>
+          {genScores.map((g,i)=>(<div key={i} className="flex items-start gap-2 mb-2">
+            <span className="text-2xl">{g.char.emoji}</span>
+            <div>
+              <span className="text-lg">{g.score==='correct'?'✅':g.score==='partial'?'🟡':'❌'}</span>
+              <span className="fredoka font-bold ml-1" style={{color:'#4A148C'}}>"{g.response}"</span>
+              <span className="text-xs ml-1" style={{color:'#9E9E9E'}}>({g.char.what})</span>
+            </div>
+          </div>))}
+        </div>}
+        <button onClick={()=>{setScreen('welcome');setPhase(null);setGenScores([])}} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#6A1B9A,#8E24AA)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+        <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#6A1B9A'}}>← Back to FrameShift</a></div>
+      </div>
+    </div></div>;
+  }
+  return null;
+}
+
+ReactDOM.render(<App/>,document.getElementById('root'));
+</script>
+</body>
+</html>

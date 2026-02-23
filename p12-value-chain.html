@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Value Chain — FrameShift P12</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+
+<script>
+  window.FrameShift = {
+    STORAGE_KEY: "frameshift_progress",
+    load: function() {
+      try {
+        var raw = localStorage.getItem(this.STORAGE_KEY);
+        return raw ? JSON.parse(raw) : { sessions: {}, achievements: [] };
+      } catch(e) { return { sessions: {}, achievements: [] }; }
+    },
+    save: function(data) {
+      try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+    },
+    saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+      var data = this.load();
+      if (!data.sessions[programId]) data.sessions[programId] = [];
+      data.sessions[programId].push({
+        date: new Date().toISOString(),
+        train: { score: trainScore, max: trainMax },
+        test: testScore !== null ? { score: testScore, max: testMax } : null,
+        mastery: mastery
+      });
+      this.save(data);
+    }
+  };
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(145deg, #E8F5E9 0%, #C8E6C9 25%, #A5D6A7 50%, #81C784 75%, #66BB6A 100%);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .fredoka { font-family: 'Fredoka', sans-serif; }
+
+  .frameshift-back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(8px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: #2E7D32;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .frameshift-back:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.7); }
+    70% { transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(76,175,80,0.3); }
+    50% { box-shadow: 0 0 40px rgba(76,175,80,0.6); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  .animate-slide-up { animation: slideUp 0.5s ease-out forwards; }
+  .animate-pop { animation: popIn 0.4s ease-out forwards; }
+  .animate-glow { animation: glowPulse 2s ease-in-out infinite; }
+  .animate-float { animation: float 3s ease-in-out infinite; }
+
+  /* Leaf decorations */
+  .leaf-bg {
+    position: fixed;
+    opacity: 0.07;
+    font-size: 80px;
+    pointer-events: none;
+    animation: float 6s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+
+<div class="leaf-bg" style="top: 5%; right: 8%; animation-delay: 0s;">🌿</div>
+<div class="leaf-bg" style="bottom: 10%; left: 5%; font-size: 60px; animation-delay: 2s;">🍃</div>
+<div class="leaf-bg" style="top: 50%; right: 3%; font-size: 50px; animation-delay: 4s;">🌱</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ──────────────── SOUND EFFECTS ────────────────
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    if (type === 'correct') {
+      [440, 554, 659].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, now + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.3);
+        osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.3);
+      });
+    } else if (type === 'incorrect') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 330; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.12, now);
+      osc.frequency.linearRampToValueAtTime(220, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.start(now); osc.stop(now + 0.35);
+    } else if (type === 'neutral') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 440; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'complete') {
+      [523, 587, 659, 784, 880].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, now + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+        osc.start(now + i * 0.15); osc.stop(now + i * 0.15 + 0.45);
+      });
+    } else if (type === 'reveal') {
+      [330, 440].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = f; osc.type = 'triangle';
+        gain.gain.setValueAtTime(0.1, now + i * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.2);
+        osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.25);
+      });
+    }
+  } catch(e) {}
+}
+
+// ──────────────── STIMULI ────────────────
+// Each triad: action (A) → outcome (B) → value (C)
+const TRAIN_TRIADS = [
+  {
+    a: "kick a soccer ball",      b: "scoring a goal",              c: "competition",
+    emoA: "⚽", emoB: "🥅", emoC: "🏆"
+  },
+  {
+    a: "help a friend with their homework", b: "having someone to count on", c: "friendship",
+    emoA: "🤝", emoB: "👫", emoC: "💛"
+  },
+  {
+    a: "do your chores without being asked", b: "making the family happy", c: "family",
+    emoA: "🧹", emoB: "😊", emoC: "🏠"
+  },
+  {
+    a: "practice piano every day",  b: "learning to play a song",     c: "hard work",
+    emoA: "🎹", emoB: "🎵", emoC: "💪"
+  },
+  {
+    a: "share your toys",           b: "everyone has fun together",   c: "generosity",
+    emoA: "🧸", emoB: "🎉", emoC: "🎁"
+  },
+  {
+    a: "tell the truth when it's hard", b: "people trust what you say", c: "honesty",
+    emoA: "🗣️", emoB: "🤞", emoC: "⭐"
+  },
+];
+
+const TEST_TRIADS = [
+  {
+    a: "read a book every night",   b: "learning new things",         c: "curiosity",
+    emoA: "📚", emoB: "💡", emoC: "🔍"
+  },
+  {
+    a: "stand up for someone being bullied", b: "keeping people safe", c: "courage",
+    emoA: "🛡️", emoB: "🫂", emoC: "🦁"
+  },
+  {
+    a: "save your allowance",       b: "having money when you need it", c: "patience",
+    emoA: "🐷", emoB: "💰", emoC: "⏳"
+  },
+  {
+    a: "draw pictures and try new things", b: "making something nobody has seen before", c: "creativity",
+    emoA: "🎨", emoB: "✨", emoC: "🌈"
+  },
+];
+
+const ALL_TRIADS = [...TRAIN_TRIADS, ...TEST_TRIADS];
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function makeOptions(correct, field, triad, pool) {
+  const others = pool.filter(t => t !== triad);
+  const distractors = shuffle(others).slice(0, 2).map(t => t[field]);
+  return shuffle([
+    { text: correct, isCorrect: true },
+    { text: distractors[0], isCorrect: false },
+    { text: distractors[1], isCorrect: false },
+  ]);
+}
+
+// ──────────────── PHASE CONFIG ────────────────
+// Training: 6 triads × 3 questions (checkAB, checkBC, checkCA_mc) = 18
+// Test MC: 4 triads × 3 questions = 12
+// Test Generate: 4 triads × 1 generation question = 4
+const TRAIN_MC_PER_TRIAD = 3;
+const TEST_MC_PER_TRIAD = 3;
+const TRAIN_TOTAL = TRAIN_TRIADS.length * TRAIN_MC_PER_TRIAD;
+const TEST_MC_TOTAL = TEST_TRIADS.length * TEST_MC_PER_TRIAD;
+const TEST_GEN_TOTAL = TEST_TRIADS.length;
+const MASTERY_THRESHOLD = 0.75;
+
+// ──────────────── MAIN APP ────────────────
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  // Phases: 'train', 'test_mc', 'test_gen'
+  const [phase, setPhase] = useState(null);
+
+  const [triadIdx, setTriadIdx] = useState(0);
+  // Steps within a triad:
+  //   teachAB → checkAB → teachBC → checkBC → bridge → checkCA_mc
+  //   For test_gen: genCA
+  const [step, setStep] = useState('teachAB');
+
+  const [trainScore, setTrainScore] = useState(0);
+  const [trainDerivScore, setTrainDerivScore] = useState(0);
+  const [testMcScore, setTestMcScore] = useState(0);
+  const [testMcDerivScore, setTestMcDerivScore] = useState(0);
+  const [testGenScores, setTestGenScores] = useState([]); // array of {triad, score, response}
+
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [answered, setAnswered] = useState(false);
+
+  // Caregiver generation state
+  const [childResponse, setChildResponse] = useState('');
+  const [genScored, setGenScored] = useState(false);
+
+  const currentTriads = phase === 'train' ? TRAIN_TRIADS : TEST_TRIADS;
+  const triad = currentTriads[triadIdx] || TRAIN_TRIADS[0];
+
+  // ──── Generate MC options ────
+  useEffect(() => {
+    if (!['checkAB', 'checkBC', 'checkCA_mc'].includes(step)) return;
+    const t = currentTriads[triadIdx];
+    if (!t) return;
+    let opts;
+    if (step === 'checkAB') {
+      opts = makeOptions(t.b, 'b', t, ALL_TRIADS);
+    } else if (step === 'checkBC') {
+      opts = makeOptions(t.c, 'c', t, ALL_TRIADS);
+    } else if (step === 'checkCA_mc') {
+      // Reverse derivation: given value C, what action A?
+      opts = makeOptions(t.a, 'a', t, ALL_TRIADS);
+    }
+    setOptions(opts);
+    setSelected(null);
+    setShowFeedback(false);
+    setAnswered(false);
+  }, [step, triadIdx, phase]);
+
+  // ──── Start ────
+  function startPhase(p) {
+    setPhase(p);
+    setTriadIdx(0);
+    setSelected(null);
+    setShowFeedback(false);
+    setAnswered(false);
+    setChildResponse('');
+    setGenScored(false);
+    if (p === 'train') {
+      setStep('teachAB');
+      setTrainScore(0);
+      setTrainDerivScore(0);
+    } else if (p === 'test_mc') {
+      setStep('teachAB');
+      setTestMcScore(0);
+      setTestMcDerivScore(0);
+    } else if (p === 'test_gen') {
+      setStep('genCA');
+      setTestGenScores([]);
+    }
+    setScreen('game');
+  }
+
+  // ──── Handle MC answer ────
+  function handleAnswer(idx) {
+    if (answered) return;
+    setSelected(idx);
+    setAnswered(true);
+    const isCorrect = options[idx].isCorrect;
+    const isDerivation = step === 'checkCA_mc';
+    const isTrain = phase === 'train';
+
+    if (isCorrect) {
+      if (isTrain) {
+        setTrainScore(s => s + 1);
+        if (isDerivation) setTrainDerivScore(s => s + 1);
+      } else {
+        setTestMcScore(s => s + 1);
+        if (isDerivation) setTestMcDerivScore(s => s + 1);
+      }
+    }
+
+    if (isTrain) {
+      playSound(isCorrect ? 'correct' : 'incorrect');
+    } else {
+      playSound('neutral');
+    }
+    setShowFeedback(true);
+  }
+
+  // ──── Handle generation scoring ────
+  function handleGenScore(score) {
+    const t = currentTriads[triadIdx];
+    setTestGenScores(prev => [...prev, { triad: t, score, response: childResponse }]);
+    setGenScored(true);
+    playSound(score === 'correct' ? 'correct' : score === 'partial' ? 'neutral' : 'neutral');
+  }
+
+  // ──── Advance ────
+  function nextStep() {
+    if (phase === 'test_gen') {
+      // Generation phase: one question per triad
+      if (triadIdx < currentTriads.length - 1) {
+        setTriadIdx(triadIdx + 1);
+        setStep('genCA');
+        setChildResponse('');
+        setGenScored(false);
+      } else {
+        finishGeneration();
+      }
+      return;
+    }
+
+    const mcSteps = ['teachAB', 'checkAB', 'teachBC', 'checkBC', 'bridge', 'checkCA_mc'];
+    const curIdx = mcSteps.indexOf(step);
+
+    if (curIdx < mcSteps.length - 1) {
+      const next = mcSteps[curIdx + 1];
+      setStep(next);
+      if (next === 'bridge') playSound('reveal');
+    } else {
+      // Triad done
+      if (triadIdx < currentTriads.length - 1) {
+        setTriadIdx(triadIdx + 1);
+        setStep('teachAB');
+        playSound('reveal');
+      } else {
+        finishMcPhase();
+      }
+    }
+  }
+
+  function finishMcPhase() {
+    if (phase === 'train') {
+      setScreen('trainResults');
+    } else {
+      // test_mc done → show MC results, offer generation phase
+      setScreen('testMcResults');
+    }
+  }
+
+  function finishGeneration() {
+    // Save full session
+    var totalMc = testMcScore;
+    var totalGen = testGenScores.filter(g => g.score === 'correct').length;
+    if (window.FrameShift) {
+      window.FrameShift.saveSession("p12", trainScore, TRAIN_TOTAL, totalMc + totalGen, TEST_MC_TOTAL + TEST_GEN_TOTAL, true);
+    }
+    setScreen('finalResults');
+    playSound('complete');
+  }
+
+  // ──── Progress calc ────
+  function getProgress() {
+    if (phase === 'test_gen') {
+      return ((triadIdx + (genScored ? 1 : 0)) / currentTriads.length) * 100;
+    }
+    const stepsPerTriad = 6;
+    const stepOrder = ['teachAB', 'checkAB', 'teachBC', 'checkBC', 'bridge', 'checkCA_mc'];
+    const stepNum = stepOrder.indexOf(step);
+    return ((triadIdx * stepsPerTriad + stepNum) / (currentTriads.length * stepsPerTriad)) * 100;
+  }
+
+  // ════════════════ SCREENS ════════════════
+
+  // Welcome
+  if (screen === 'welcome') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="text-8xl mb-6 animate-float" style={{filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))'}}>🌳</div>
+          <h1 className="fredoka text-5xl font-bold mb-3" style={{color: '#1B5E20'}}>
+            Value Chain
+          </h1>
+          <p className="text-xl mb-2 font-semibold" style={{color: '#2E7D32'}}>
+            FrameShift Program 12
+          </p>
+          <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter: 'blur(8px)'}}>
+            <p className="text-lg" style={{color: '#33691E'}}>
+              Actions lead to outcomes. Outcomes connect to values.
+            </p>
+            <p className="text-base mt-3" style={{color: '#558B2F'}}>
+              Can you figure out what to <em>do</em> when you know what you <em>value</em>?
+            </p>
+          </div>
+          <button
+            onClick={() => startPhase('train')}
+            className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
+            style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}
+          >
+            Start Training 🌱
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Game
+  if (screen === 'game') {
+    const t = currentTriads[triadIdx];
+    const isTest = phase !== 'train';
+    const phaseLabel = phase === 'train' ? 'Training' : phase === 'test_mc' ? 'Test — Choose' : 'Test — Create';
+    const progress = getProgress();
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        {/* Header */}
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full"
+              style={{background: phase === 'test_gen' ? '#1B5E20' : phase === 'test_mc' ? '#2E7D32' : '#43A047', color: 'white'}}>
+              {phaseLabel}
+            </span>
+            <span className="fredoka text-sm font-semibold" style={{color: '#1B5E20'}}>
+              {phase === 'test_gen' ? 'Value' : 'Chain'} {triadIdx + 1} of {currentTriads.length}
+            </span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background: 'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{width: `${progress}%`, background: 'linear-gradient(90deg, #2E7D32, #66BB6A)'}} />
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg">
+
+          {/* ──── TEACH A→B ──── */}
+          {step === 'teachAB' && (
+            <div className="animate-slide-up">
+              <TeachCard
+                topLabel="Action"
+                emoji1={t.emoA} label1={t.a}
+                bottomLabel="Outcome"
+                emoji2={t.emoB} label2={t.b}
+                sentence={<span>If you <strong>{t.a}</strong>, the result is <strong>{t.b}</strong>.</span>}
+                onNext={nextStep}
+              />
+            </div>
+          )}
+
+          {/* ──── CHECK A→B ──── */}
+          {step === 'checkAB' && (
+            <div className="animate-slide-up">
+              <QuizCard
+                question={`What happens when you ${t.a}?`}
+                emoji={t.emoA}
+                options={options} selected={selected}
+                showFeedback={showFeedback} isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer} onNext={nextStep}
+                stepLabel="Action → Outcome"
+              />
+            </div>
+          )}
+
+          {/* ──── TEACH B→C ──── */}
+          {step === 'teachBC' && (
+            <div className="animate-slide-up">
+              <TeachCard
+                topLabel="Outcome"
+                emoji1={t.emoB} label1={t.b}
+                bottomLabel="Value"
+                emoji2={t.emoC} label2={t.c}
+                sentence={<span><strong>{t.b}</strong> is connected to the value of <strong>{t.c}</strong>.</span>}
+                onNext={nextStep}
+              />
+            </div>
+          )}
+
+          {/* ──── CHECK B→C ──── */}
+          {step === 'checkBC' && (
+            <div className="animate-slide-up">
+              <QuizCard
+                question={`What value is "${t.b}" connected to?`}
+                emoji={t.emoB}
+                options={options} selected={selected}
+                showFeedback={showFeedback} isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer} onNext={nextStep}
+                stepLabel="Outcome → Value"
+              />
+            </div>
+          )}
+
+          {/* ──── BRIDGE ──── */}
+          {step === 'bridge' && (
+            <div className="animate-pop text-center">
+              <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+                <div className="text-5xl mb-4">🔄</div>
+                <h2 className="fredoka text-2xl font-bold mb-4" style={{color: '#1B5E20'}}>
+                  Now Think Backwards...
+                </h2>
+                <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
+                  <div className="text-center">
+                    <span className="text-3xl">{t.emoA}</span>
+                    <p className="text-xs mt-1 font-semibold" style={{color: '#558B2F'}}>Action</p>
+                  </div>
+                  <span className="fredoka text-2xl" style={{color: '#43A047'}}>→</span>
+                  <div className="text-center">
+                    <span className="text-3xl">{t.emoB}</span>
+                    <p className="text-xs mt-1 font-semibold" style={{color: '#558B2F'}}>Outcome</p>
+                  </div>
+                  <span className="fredoka text-2xl" style={{color: '#43A047'}}>→</span>
+                  <div className="text-center">
+                    <span className="text-3xl">{t.emoC}</span>
+                    <p className="text-xs mt-1 font-semibold" style={{color: '#558B2F'}}>Value</p>
+                  </div>
+                </div>
+                <div className="rounded-xl p-4 mb-6" style={{background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)'}}>
+                  <p className="text-lg" style={{color: '#33691E'}}>
+                    You know <strong>{t.c}</strong> is important.
+                  </p>
+                  <p className="text-lg mt-2 fredoka font-bold" style={{color: '#1B5E20'}}>
+                    What would you DO to work towards {t.c}?
+                  </p>
+                </div>
+                <button
+                  onClick={nextStep}
+                  className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}
+                >
+                  I Think I Know! 💡
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ──── CHECK C→A (multiple choice) ──── */}
+          {step === 'checkCA_mc' && (
+            <div className="animate-pop">
+              <QuizCard
+                question={`If you value ${t.c}, what would you DO?`}
+                emoji={t.emoC}
+                options={options} selected={selected}
+                showFeedback={showFeedback} isTest={isTest}
+                answered={answered}
+                onAnswer={handleAnswer} onNext={nextStep}
+                stepLabel="⭐ Value → Action"
+                isDerivation={true}
+              />
+            </div>
+          )}
+
+          {/* ──── GENERATION: C→A (open response) ──── */}
+          {step === 'genCA' && (
+            <div className="animate-slide-up">
+              <GenerationCard
+                triad={t}
+                childResponse={childResponse}
+                setChildResponse={setChildResponse}
+                genScored={genScored}
+                onScore={handleGenScore}
+                onNext={nextStep}
+              />
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
+
+  // Training Results
+  if (screen === 'trainResults') {
+    const pct = Math.round((trainScore / TRAIN_TOTAL) * 100);
+    const passed = pct >= MASTERY_THRESHOLD * 100;
+    const derivPct = Math.round((trainDerivScore / TRAIN_TRIADS.length) * 100);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+            <div className="text-6xl mb-4">{passed ? '🎉' : '🔄'}</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color: '#1B5E20'}}>
+              {passed ? 'Training Complete!' : 'Keep Growing!'}
+            </h2>
+            <div className="my-6 space-y-3">
+              <div className="rounded-xl p-4" style={{background: '#E8F5E9'}}>
+                <p className="fredoka text-lg font-semibold" style={{color: '#2E7D32'}}>
+                  Overall: {trainScore} / {TRAIN_TOTAL} ({pct}%)
+                </p>
+              </div>
+              <div className="rounded-xl p-4" style={{background: '#F1F8E9'}}>
+                <p className="fredoka text-lg font-semibold" style={{color: '#558B2F'}}>
+                  Value → Action Derivations: {trainDerivScore} / {TRAIN_TRIADS.length} ({derivPct}%)
+                </p>
+                <p className="text-sm mt-1" style={{color: '#33691E'}}>
+                  The big ones — going from a value back to an action!
+                </p>
+              </div>
+            </div>
+            {passed ? (
+              <div>
+                <p className="text-lg mb-6" style={{color: '#33691E'}}>
+                  Ready for the test — new values, new chains!
+                </p>
+                <button
+                  onClick={() => startPhase('test_mc')}
+                  className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #1B5E20, #2E7D32)', fontFamily: 'Fredoka'}}
+                >
+                  Start Test 🧪
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-lg mb-6" style={{color: '#33691E'}}>
+                  Need {Math.round(MASTERY_THRESHOLD * 100)}% to unlock the test.
+                </p>
+                <button
+                  onClick={() => startPhase('train')}
+                  className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                  style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}
+                >
+                  Try Again 🌱
+                </button>
+              </div>
+            )}
+            <div className="mt-4">
+              <a href="index.html" className="text-sm font-semibold" style={{color: '#2E7D32'}}>← Back to FrameShift</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Test MC Results → gateway to generation phase
+  if (screen === 'testMcResults') {
+    const pct = Math.round((testMcScore / TEST_MC_TOTAL) * 100);
+    const derivPct = Math.round((testMcDerivScore / TEST_TRIADS.length) * 100);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+            <div className="text-6xl mb-4">🌿</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color: '#1B5E20'}}>
+              Multiple Choice Done!
+            </h2>
+            <div className="my-6 space-y-3">
+              <div className="rounded-xl p-4" style={{background: '#E8F5E9'}}>
+                <p className="fredoka text-lg font-semibold" style={{color: '#2E7D32'}}>
+                  Recognition: {testMcScore} / {TEST_MC_TOTAL} ({pct}%)
+                </p>
+              </div>
+              <div className="rounded-xl p-4" style={{background: '#F1F8E9'}}>
+                <p className="fredoka text-lg font-semibold" style={{color: '#558B2F'}}>
+                  Value → Action: {testMcDerivScore} / {TEST_TRIADS.length} ({derivPct}%)
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl p-5 mb-6" style={{background: 'linear-gradient(135deg, #FFF8E1, #FFF3E0)', border: '2px solid #FFB74D'}}>
+              <p className="fredoka text-lg font-bold mb-2" style={{color: '#E65100'}}>
+                🧑‍🏫 Caregiver: Next comes Generation!
+              </p>
+              <p className="text-sm" style={{color: '#BF360C'}}>
+                The child will hear a value and must <strong>come up with their own action</strong> — no choices to pick from. 
+                You'll type what they say and score whether it connects to the value.
+              </p>
+            </div>
+
+            <button
+              onClick={() => startPhase('test_gen')}
+              className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+              style={{background: 'linear-gradient(135deg, #1B5E20, #2E7D32)', fontFamily: 'Fredoka'}}
+            >
+              Start Generation Test 🌟
+            </button>
+            <div className="mt-4">
+              <a href="index.html" className="text-sm font-semibold" style={{color: '#2E7D32'}}>← Back to FrameShift</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Final Results
+  if (screen === 'finalResults') {
+    const mcPct = Math.round((testMcScore / TEST_MC_TOTAL) * 100);
+    const genCorrect = testGenScores.filter(g => g.score === 'correct').length;
+    const genPartial = testGenScores.filter(g => g.score === 'partial').length;
+    const genPct = Math.round((genCorrect / TEST_GEN_TOTAL) * 100);
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-slide-up max-w-lg w-full text-center">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter: 'blur(8px)'}}>
+            <div className="text-6xl mb-4">🏆</div>
+            <h2 className="fredoka text-3xl font-bold mb-2" style={{color: '#1B5E20'}}>
+              All Done!
+            </h2>
+            <div className="my-6 space-y-3">
+              <div className="rounded-xl p-4" style={{background: '#E8F5E9'}}>
+                <p className="fredoka text-base font-semibold" style={{color: '#2E7D32'}}>
+                  Recognition (MC): {testMcScore} / {TEST_MC_TOTAL} ({mcPct}%)
+                </p>
+              </div>
+              <div className="rounded-xl p-4" style={{background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)', border: '2px solid #66BB6A'}}>
+                <p className="fredoka text-xl font-bold" style={{color: '#1B5E20'}}>
+                  ⭐ Generation: {genCorrect} / {TEST_GEN_TOTAL} correct ({genPct}%)
+                </p>
+                {genPartial > 0 && (
+                  <p className="text-sm mt-1" style={{color: '#558B2F'}}>
+                    + {genPartial} partial responses
+                  </p>
+                )}
+                <p className="text-sm mt-2" style={{color: '#33691E'}}>
+                  Creating their own answers — the real test!
+                </p>
+              </div>
+            </div>
+
+            {/* Show generation responses */}
+            {testGenScores.length > 0 && (
+              <div className="text-left rounded-xl p-4 mb-4" style={{background: '#F1F8E9'}}>
+                <p className="fredoka text-sm font-bold mb-2" style={{color: '#558B2F'}}>Generation Responses:</p>
+                {testGenScores.map((g, i) => (
+                  <div key={i} className="flex items-start gap-2 mb-2">
+                    <span className="text-lg mt-0.5">
+                      {g.score === 'correct' ? '✅' : g.score === 'partial' ? '🟡' : '❌'}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold" style={{color: '#33691E'}}>
+                        {g.triad.c}: <span className="font-normal" style={{color: '#4E342E'}}>"{g.response || '(no response)'}"</span>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 mt-4">
+              <button
+                onClick={() => { setScreen('welcome'); setPhase(null); setTestGenScores([]); }}
+                className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+                style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}
+              >
+                Play Again 🔄
+              </button>
+              <a href="index.html"
+                className="inline-block px-8 py-3 rounded-full text-lg font-bold shadow-lg transition-all hover:scale-105"
+                style={{background: 'rgba(255,255,255,0.7)', color: '#1B5E20', fontFamily: 'Fredoka'}}>
+                ← Back to FrameShift
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ──────────────── TEACH CARD ────────────────
+function TeachCard({ topLabel, emoji1, label1, bottomLabel, emoji2, label2, sentence, onNext }) {
+  return (
+    <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl text-center" style={{backdropFilter: 'blur(8px)'}}>
+      <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex flex-col items-center">
+          <p className="fredoka text-xs font-bold uppercase tracking-wider mb-1" style={{color: '#66BB6A'}}>{topLabel}</p>
+          <span className="text-5xl mb-2">{emoji1}</span>
+          <div className="rounded-xl px-4 py-2 max-w-48" style={{background: '#E8F5E9'}}>
+            <p className="text-base font-semibold" style={{color: '#33691E'}}>{label1}</p>
+          </div>
+        </div>
+        <span className="fredoka text-4xl font-bold" style={{color: '#43A047'}}>→</span>
+        <div className="flex flex-col items-center">
+          <p className="fredoka text-xs font-bold uppercase tracking-wider mb-1" style={{color: '#66BB6A'}}>{bottomLabel}</p>
+          <span className="text-5xl mb-2">{emoji2}</span>
+          <div className="rounded-xl px-4 py-2 max-w-48" style={{background: '#F1F8E9'}}>
+            <p className="text-base font-semibold" style={{color: '#33691E'}}>{label2}</p>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-xl p-4 mb-5" style={{background: 'linear-gradient(135deg, #E8F5E9, #F1F8E9)'}}>
+        <p className="text-lg" style={{color: '#33691E'}}>{sentence}</p>
+      </div>
+      <button
+        onClick={onNext}
+        className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+        style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}
+      >
+        Got It! 👍
+      </button>
+    </div>
+  );
+}
+
+// ──────────────── QUIZ CARD ────────────────
+function QuizCard({ question, emoji, options, selected, showFeedback, isTest, answered, onAnswer, onNext, stepLabel, isDerivation }) {
+  const correctIdx = options.findIndex(o => o.isCorrect);
+  return (
+    <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+      {stepLabel && (
+        <p className="fredoka text-sm font-semibold mb-3 uppercase tracking-wide text-center"
+          style={{color: isDerivation ? '#1B5E20' : '#43A047'}}>
+          {stepLabel}
+        </p>
+      )}
+      <div className="text-center mb-3"><span className="text-5xl">{emoji}</span></div>
+      <p className="fredoka text-xl font-bold text-center mb-5" style={{color: '#33691E'}}>{question}</p>
+
+      <div className="space-y-3 mb-4">
+        {options.map((opt, i) => {
+          let bg = 'white', border = '#C8E6C9', textColor = '#33691E', shadow = '0 2px 6px rgba(0,0,0,0.08)';
+          if (showFeedback && !isTest) {
+            if (i === correctIdx) { bg = '#E8F5E9'; border = '#4CAF50'; textColor = '#2E7D32'; shadow = '0 2px 10px rgba(76,175,80,0.3)'; }
+            else if (i === selected && !opt.isCorrect) { bg = '#FFEBEE'; border = '#EF5350'; textColor = '#C62828'; shadow = '0 2px 10px rgba(239,83,80,0.3)'; }
+          } else if (showFeedback && isTest) {
+            if (i === selected) { bg = '#E8F5E9'; border = '#66BB6A'; textColor = '#1B5E20'; shadow = '0 2px 10px rgba(102,187,106,0.3)'; }
+          }
+          return (
+            <button key={i} onClick={() => onAnswer(i)} disabled={answered}
+              className="w-full text-left p-4 rounded-xl font-semibold transition-all"
+              style={{
+                background: bg, border: `2px solid ${border}`, color: textColor, boxShadow: shadow,
+                opacity: answered && i !== selected && !(showFeedback && !isTest && i === correctIdx) ? 0.5 : 1,
+                cursor: answered ? 'default' : 'pointer',
+              }}>
+              {opt.text}
+            </button>
+          );
+        })}
+      </div>
+
+      {showFeedback && (
+        <div className="animate-pop">
+          {isTest ? (
+            <div className="text-center rounded-xl p-3 mb-4" style={{background: '#F1F8E9'}}>
+              <p className="fredoka font-semibold" style={{color: '#558B2F'}}>Response recorded ✓</p>
+            </div>
+          ) : (
+            <div className="text-center rounded-xl p-3 mb-4"
+              style={{background: options[selected]?.isCorrect ? '#E8F5E9' : '#FFF3E0'}}>
+              {options[selected]?.isCorrect ? (
+                <p className="fredoka font-semibold" style={{color: '#2E7D32'}}>
+                  {isDerivation ? '⭐ You connected the value back to the action!' : '✅ Right!'}
+                </p>
+              ) : (
+                <p className="fredoka font-semibold" style={{color: '#E65100'}}>
+                  Not quite — the answer is: <strong>{options[correctIdx]?.text}</strong>
+                </p>
+              )}
+            </div>
+          )}
+          <div className="text-center">
+            <button onClick={onNext}
+              className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+              style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}>
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────── GENERATION CARD (Caregiver-scored) ────────────────
+function GenerationCard({ triad, childResponse, setChildResponse, genScored, onScore, onNext }) {
+  const inputRef = useRef(null);
+
+  return (
+    <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter: 'blur(8px)'}}>
+      {/* Child-facing prompt */}
+      <div className="text-center mb-4">
+        <p className="fredoka text-sm font-bold uppercase tracking-wider mb-2" style={{color: '#1B5E20'}}>
+          ⭐ Your Turn to Create!
+        </p>
+        <span className="text-6xl">{triad.emoC}</span>
+      </div>
+
+      <div className="rounded-xl p-5 mb-5" style={{background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)'}}>
+        <p className="fredoka text-xl font-bold text-center" style={{color: '#1B5E20'}}>
+          You really care about <span style={{color: '#2E7D32', textDecoration: 'underline', textDecorationColor: '#66BB6A'}}>{triad.c}</span>.
+        </p>
+        <p className="fredoka text-lg text-center mt-3" style={{color: '#33691E'}}>
+          What is something you could <em>do</em> to work towards {triad.c}?
+        </p>
+      </div>
+
+      {/* Caregiver section */}
+      <div className="rounded-2xl p-4 mb-4" style={{background: '#FFF8E1', border: '2px dashed #FFB74D'}}>
+        <p className="fredoka text-sm font-bold mb-3" style={{color: '#E65100'}}>
+          🧑‍🏫 Caregiver: Write what the child says
+        </p>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={childResponse}
+          onChange={e => setChildResponse(e.target.value)}
+          disabled={genScored}
+          placeholder="Type the child's answer here..."
+          className="w-full p-3 rounded-xl text-base border-2 focus:outline-none transition-all"
+          style={{
+            borderColor: genScored ? '#C8E6C9' : '#FFB74D',
+            background: genScored ? '#F1F8E9' : 'white',
+            color: '#33691E',
+            fontFamily: 'Nunito'
+          }}
+        />
+
+        {!genScored && childResponse.trim().length > 0 && (
+          <div className="mt-4 animate-pop">
+            <p className="text-sm font-semibold mb-2" style={{color: '#BF360C'}}>
+              Does their answer connect to <strong>{triad.c}</strong>?
+            </p>
+            <p className="text-xs mb-3" style={{color: '#8D6E63'}}>
+              It doesn't have to match "{triad.a}" exactly — any action that demonstrates {triad.c} counts!
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => onScore('correct')}
+                className="flex-1 py-3 rounded-xl font-bold text-white transition-all hover:scale-105 active:scale-95"
+                style={{background: '#4CAF50', fontFamily: 'Fredoka', minWidth: '80px'}}>
+                ✅ Yes
+              </button>
+              <button onClick={() => onScore('partial')}
+                className="flex-1 py-3 rounded-xl font-bold text-white transition-all hover:scale-105 active:scale-95"
+                style={{background: '#FF9800', fontFamily: 'Fredoka', minWidth: '80px'}}>
+                🟡 Partial
+              </button>
+              <button onClick={() => onScore('incorrect')}
+                className="flex-1 py-3 rounded-xl font-bold text-white transition-all hover:scale-105 active:scale-95"
+                style={{background: '#EF5350', fontFamily: 'Fredoka', minWidth: '80px'}}>
+                ❌ No
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!genScored && childResponse.trim().length === 0 && (
+          <div className="mt-3">
+            <p className="text-xs" style={{color: '#8D6E63'}}>
+              If the child doesn't respond or says "I don't know":
+            </p>
+            <button onClick={() => { setChildResponse('(no response)'); onScore('incorrect'); }}
+              className="mt-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105"
+              style={{background: '#FFEBEE', color: '#C62828', fontFamily: 'Fredoka'}}>
+              No Response / Don't Know
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Post-score feedback */}
+      {genScored && (
+        <div className="animate-pop text-center">
+          <div className="rounded-xl p-3 mb-4" style={{background: '#E8F5E9'}}>
+            <p className="fredoka font-semibold" style={{color: '#2E7D32'}}>
+              Response recorded ✓
+            </p>
+            <p className="text-sm mt-1" style={{color: '#558B2F'}}>
+              One way to do it: <strong>{triad.a}</strong>
+            </p>
+          </div>
+          <button onClick={onNext}
+            className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+            style={{background: 'linear-gradient(135deg, #2E7D32, #43A047)', fontFamily: 'Fredoka'}}>
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

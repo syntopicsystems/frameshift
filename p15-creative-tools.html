@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creative Tools — FrameShift P15</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):{sessions:{},achievements:[]}}catch(e){return{sessions:{},achievements:[]}}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d))}catch(e){}},saveSession:function(id,ts,tm,xs,xm,m){var d=this.load();if(!d.sessions[id])d.sessions[id]=[];d.sessions[id].push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m});this.save(d)}};
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',sans-serif;min-height:100vh;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 30%,#FFD54F 70%,#FFC107 100%);overflow-x:hidden}
+  h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+  .frameshift-back{position:fixed;top:16px;left:16px;z-index:1000;background:rgba(255,255,255,0.85);backdrop-filter:blur(8px);padding:8px 16px;border-radius:20px;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#F57F17;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);transition:transform 0.2s}
+  .frameshift-back:hover{transform:translateY(-1px)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.7)}70%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+  @keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(255,193,7,0.3)}50%{box-shadow:0 0 40px rgba(255,193,7,0.6)}}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-3deg)}75%{transform:rotate(3deg)}}
+  .animate-slide-up{animation:slideUp 0.5s ease-out forwards}
+  .animate-pop{animation:popIn 0.4s ease-out forwards}
+  .animate-glow{animation:glowPulse 2s ease-in-out infinite}
+  .decor{position:fixed;opacity:0.07;font-size:80px;pointer-events:none}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div class="decor" style="top:8%;right:5%">🔧</div>
+<div class="decor" style="bottom:10%;left:8%;font-size:60px">🛠️</div>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+function playSound(t){try{const c=new(window.AudioContext||window.webkitAudioContext)();const n=c.currentTime;if(t==='correct'){[440,554,659].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.3);o.start(n+i*0.12);o.stop(n+i*0.12+0.3)})}else if(t==='incorrect'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=330;o.type='sine';g.gain.setValueAtTime(0.12,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.start(n);o.stop(n+0.35)}else if(t==='neutral'){const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;o.type='sine';g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.25);o.start(n);o.stop(n+0.3)}else if(t==='complete'){[523,587,659,784,880].forEach((f,i)=>{const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;o.type='sine';g.gain.setValueAtTime(0.15,n+i*0.15);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+0.4);o.start(n+i*0.15);o.stop(n+i*0.15+0.45)})}}catch(e){}}
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// Each: task, better tool (emoji+name), worse tool (emoji+name), why
+const TRAIN_ITEMS = [
+  { task: "Pound a nail into the wall",     better: {e:"📖",n:"heavy book"},        worse: {e:"🧸",n:"teddy bear"},       why: "A book is hard and heavy enough to push a nail in." },
+  { task: "Fan yourself to cool off",        better: {e:"🗞️",n:"folded newspaper"},  worse: {e:"🧱",n:"brick"},            why: "You can wave a newspaper to make a breeze." },
+  { task: "Knock over a bowling pin",        better: {e:"🏀",n:"basketball"},        worse: {e:"📁",n:"folder"},           why: "A basketball is round and heavy enough to roll at the pin." },
+  { task: "Carry water across the room",     better: {e:"👟",n:"rubber boot"},       worse: {e:"📰",n:"newspaper"},        why: "A boot can hold water like a bucket!" },
+  { task: "Reach something on a high shelf", better: {e:"🧹",n:"broom"},             worse: {e:"🧤",n:"mitten"},           why: "A broom handle is long enough to push things down from a shelf." },
+  { task: "Keep a door from closing",        better: {e:"📕",n:"thick book"},        worse: {e:"🧻",n:"tissue"},           why: "A thick book is heavy and solid enough to wedge under a door." },
+  { task: "Draw a straight line",            better: {e:"📏",n:"ruler"},             worse: {e:"🧣",n:"scarf"},            why: "A ruler has a straight, hard edge." },
+  { task: "Scoop sand into a pile",          better: {e:"🥄",n:"large spoon"},       worse: {e:"🪥",n:"toothbrush"},       why: "A large spoon can scoop sand; a toothbrush mostly just pushes it." },
+];
+
+const TEST_ITEMS = [
+  { task: "Hold a bunch of marbles",          better: {e:"🥣",n:"ladle"},             worse: {e:"📖",n:"open book"},        why: "A ladle has a bowl shape that can hold marbles." },
+  { task: "Prop up a wobbly table",           better: {e:"🃏",n:"deck of cards"},     worse: {e:"🪶",n:"feather"},          why: "You can stack cards to the right height under the short leg." },
+  { task: "Cut a piece of tape",              better: {e:"🔑",n:"key"},               worse: {e:"🧽",n:"sponge"},           why: "A key edge is sharp enough to tear tape." },
+  { task: "Dig a small hole in dirt",         better: {e:"🥄",n:"metal spoon"},       worse: {e:"🧦",n:"sock"},             why: "A metal spoon is rigid and can scoop dirt." },
+  { task: "Signal someone far away",          better: {e:"🪞",n:"small mirror"},      worse: {e:"📎",n:"paper clip"},       why: "A mirror can reflect sunlight to flash a signal." },
+  { task: "Flatten a wrinkled shirt",         better: {e:"🍳",n:"hot pan"},           worse: {e:"🧸",n:"stuffed animal"},   why: "A hot pan is flat and heavy — it works like an iron!" },
+];
+
+const TRAIN_TOTAL = TRAIN_ITEMS.length;
+const TEST_TOTAL = TEST_ITEMS.length;
+const MASTERY = 0.75;
+
+function App() {
+  const [screen, setScreen] = useState('welcome');
+  const [phase, setPhase] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const [trainScore, setTrainScore] = useState(0);
+  const [testScore, setTestScore] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [showFb, setShowFb] = useState(false);
+  const [answered, setAnswered] = useState(false);
+  const [order, setOrder] = useState([0, 1]); // randomize left/right
+
+  const items = phase === 'train' ? TRAIN_ITEMS : TEST_ITEMS;
+  const item = items[idx];
+
+  useEffect(() => {
+    if (!items[idx]) return;
+    setOrder(shuffle([0, 1])); // 0=better first, or 1=worse first
+    setSelected(null); setShowFb(false); setAnswered(false);
+  }, [idx, phase]);
+
+  function start(p) {
+    setPhase(p); setIdx(0);
+    if (p === 'train') setTrainScore(0); else setTestScore(0);
+    setSelected(null); setShowFb(false); setAnswered(false);
+    setScreen('game');
+  }
+
+  function handlePick(isBetter) {
+    if (answered) return;
+    setSelected(isBetter ? 'better' : 'worse');
+    setAnswered(true);
+    if (isBetter) {
+      if (phase === 'train') setTrainScore(s => s + 1);
+      else setTestScore(s => s + 1);
+    }
+    playSound(phase === 'train' ? (isBetter ? 'correct' : 'incorrect') : 'neutral');
+    setShowFb(true);
+  }
+
+  function next() {
+    if (idx < items.length - 1) { setIdx(idx + 1); }
+    else {
+      if (phase === 'train') { setScreen('trainRes'); }
+      else {
+        if (window.FrameShift) window.FrameShift.saveSession("p15", trainScore, TRAIN_TOTAL, testScore, TEST_TOTAL, true);
+        playSound('complete'); setScreen('testRes');
+      }
+    }
+  }
+
+  if (screen === 'welcome') return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="text-8xl mb-6">🛠️</div>
+        <h1 className="fredoka text-5xl font-bold mb-3" style={{color:'#F57F17'}}>Creative Tools</h1>
+        <p className="text-xl mb-2 font-semibold" style={{color:'#FF8F00'}}>FrameShift Program 15</p>
+        <div className="bg-white bg-opacity-70 rounded-2xl p-6 mb-8 shadow-lg" style={{backdropFilter:'blur(8px)'}}>
+          <p className="text-lg" style={{color:'#E65100'}}>Sometimes you don't have the right tool.</p>
+          <p className="text-base mt-3" style={{color:'#F57F17'}}>Can you figure out which <em>wrong</em> tool would actually work?</p>
+        </div>
+        <button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#F57F17,#FF8F00)',fontFamily:'Fredoka'}}>Start Training 🔧</button>
+      </div>
+    </div>
+  );
+
+  if (screen === 'game') {
+    const it = items[idx];
+    const isTest = phase === 'test';
+    const progress = ((idx + (answered ? 0.5 : 0)) / items.length) * 100;
+
+    // Build tool pair in randomized order
+    const tools = order[0] === 0
+      ? [{ ...it.better, isBetter: true }, { ...it.worse, isBetter: false }]
+      : [{ ...it.worse, isBetter: false }, { ...it.better, isBetter: true }];
+
+    return (
+      <div className="min-h-screen flex flex-col items-center p-4 pt-16">
+        <div className="w-full max-w-lg mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="fredoka font-bold text-sm px-3 py-1 rounded-full" style={{background:isTest?'#F57F17':'#FF8F00',color:'white'}}>{isTest?'Test':'Training'}</span>
+            <span className="fredoka text-sm font-semibold" style={{color:'#F57F17'}}>Task {idx+1} of {items.length}</span>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.5)'}}>
+            <div className="h-full rounded-full transition-all duration-500" style={{width:`${progress}%`,background:'linear-gradient(90deg,#F57F17,#FFC107)'}}/>
+          </div>
+        </div>
+
+        <div className="w-full max-w-lg animate-slide-up">
+          <div className="bg-white bg-opacity-80 rounded-3xl p-6 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+            {/* Task */}
+            <div className="rounded-xl p-4 mb-5 text-center" style={{background:'linear-gradient(135deg,#FFF8E1,#FFECB3)'}}>
+              <p className="fredoka text-xs font-bold uppercase tracking-wider mb-1" style={{color:'#FF8F00'}}>Your Task</p>
+              <p className="fredoka text-2xl font-bold" style={{color:'#E65100'}}>{it.task}</p>
+            </div>
+
+            <p className="fredoka text-lg font-bold text-center mb-4" style={{color:'#F57F17'}}>
+              Which tool would work better?
+            </p>
+
+            {/* Two tool buttons */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {tools.map((tool, i) => {
+                const isSel = (tool.isBetter && selected === 'better') || (!tool.isBetter && selected === 'worse');
+                let bg = 'white', border = '#FFE082', shadow = '0 2px 8px rgba(0,0,0,0.08)';
+
+                if (showFb && !isTest) {
+                  if (tool.isBetter) { bg = '#E8F5E9'; border = '#4CAF50'; shadow = '0 2px 12px rgba(76,175,80,0.3)'; }
+                  else if (isSel) { bg = '#FFEBEE'; border = '#EF5350'; shadow = '0 2px 12px rgba(239,83,80,0.3)'; }
+                } else if (showFb && isTest && isSel) {
+                  bg = '#FFF8E1'; border = '#FFC107'; shadow = '0 2px 12px rgba(255,193,7,0.3)';
+                }
+
+                return (
+                  <button key={i} onClick={() => handlePick(tool.isBetter)} disabled={answered}
+                    className="p-5 rounded-2xl transition-all flex flex-col items-center"
+                    style={{background:bg,border:`3px solid ${border}`,boxShadow:shadow,
+                      opacity: answered && !isSel && !(showFb && !isTest && tool.isBetter) ? 0.4 : 1,
+                      cursor:answered?'default':'pointer'}}>
+                    <span className="text-6xl mb-2">{tool.e}</span>
+                    <span className="fredoka text-base font-bold" style={{color:'#5D4037'}}>{tool.n}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Feedback */}
+            {showFb && (
+              <div className="animate-pop">
+                {isTest ? (
+                  <div className="text-center rounded-xl p-3 mb-4" style={{background:'#FFF8E1'}}>
+                    <p className="fredoka font-semibold" style={{color:'#F57F17'}}>Response recorded ✓</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl p-4 mb-4" style={{background: selected === 'better' ? '#E8F5E9' : '#FFF3E0'}}>
+                    {selected === 'better' ? (
+                      <p className="fredoka font-semibold text-center" style={{color:'#2E7D32'}}>✅ Great thinking!</p>
+                    ) : (
+                      <p className="fredoka font-semibold text-center" style={{color:'#E65100'}}>
+                        The better choice is: <strong>{it.better.n} {it.better.e}</strong>
+                      </p>
+                    )}
+                    <p className="text-sm mt-2 text-center" style={{color:'#5D4037'}}>{it.why}</p>
+                  </div>
+                )}
+                <div className="text-center">
+                  <button onClick={next} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all" style={{background:'linear-gradient(135deg,#F57F17,#FF8F00)',fontFamily:'Fredoka'}}>Next →</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'trainRes') {
+    const pct = Math.round((trainScore/TRAIN_TOTAL)*100);
+    const passed = pct >= MASTERY*100;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl" style={{backdropFilter:'blur(8px)'}}>
+          <div className="text-6xl mb-4">{passed?'🎉':'🔄'}</div>
+          <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#F57F17'}}>{passed?'Training Complete!':'Keep Tinkering!'}</h2>
+          <div className="my-6 rounded-xl p-4" style={{background:'#FFF8E1'}}><p className="fredoka text-lg font-semibold" style={{color:'#FF8F00'}}>Score: {trainScore}/{TRAIN_TOTAL} ({pct}%)</p></div>
+          {passed?<button onClick={()=>start('test')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#E65100,#F57F17)',fontFamily:'Fredoka'}}>Start Test 🧪</button>
+          :<button onClick={()=>start('train')} className="px-10 py-4 rounded-full text-xl font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#F57F17,#FF8F00)',fontFamily:'Fredoka'}}>Try Again 🔧</button>}
+          <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#F57F17'}}>← Back to FrameShift</a></div>
+        </div>
+      </div></div>
+    );
+  }
+
+  if (screen === 'testRes') {
+    const pct = Math.round((testScore/TEST_TOTAL)*100);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4"><div className="animate-slide-up max-w-lg w-full text-center">
+        <div className="bg-white bg-opacity-80 rounded-3xl p-8 shadow-xl animate-glow" style={{backdropFilter:'blur(8px)'}}>
+          <div className="text-6xl mb-4">🏆</div>
+          <h2 className="fredoka text-3xl font-bold mb-2" style={{color:'#F57F17'}}>Test Complete!</h2>
+          <div className="my-6 rounded-xl p-4" style={{background:'#FFF8E1'}}><p className="fredoka text-xl font-bold" style={{color:'#E65100'}}>Score: {testScore}/{TEST_TOTAL} ({pct}%)</p></div>
+          <button onClick={()=>{setScreen('welcome');setPhase(null)}} className="px-8 py-3 rounded-full text-lg font-bold text-white shadow-lg hover:scale-105 transition-all" style={{background:'linear-gradient(135deg,#F57F17,#FF8F00)',fontFamily:'Fredoka'}}>Play Again 🔄</button>
+          <div className="mt-4"><a href="index.html" className="text-sm font-semibold" style={{color:'#F57F17'}}>← Back to FrameShift</a></div>
+        </div>
+      </div></div>
+    );
+  }
+  return null;
+}
+
+ReactDOM.render(<App/>,document.getElementById('root'));
+</script>
+</body>
+</html>
