@@ -150,55 +150,74 @@
 
     // ── PROGRAM METADATA ────────────────────────────────────
     const PROGRAMS = [
-      { id: "p1",  num: 1,  title: "More or Less",         subtitle: "Comparative",           emoji: "⚖️",  color: "#22C55E", file: "p1-more-or-less.html",     category: "Translation" },
-      { id: "p2",  num: 2,  title: "Same & Different",     subtitle: "Coordination",          emoji: "🔍",  color: "#F59E0B", file: "p2-same-and-different.html",category: "Translation" },
-      { id: "p3",  num: 3,  title: "Symbol Bridge",        subtitle: "Stimulus Equivalence",  emoji: "🌉",  color: "#8B5CF6", file: "p3-symbol-bridge.html",    category: "Equivalence" },
-      { id: "p4",  num: 4,  title: "Scent Match",          subtitle: "Cross-Modal Olfactory", emoji: "🌸",  color: "#EC4899", file: "p4-scent-match.html",      category: "Equivalence" },
-      { id: "p5",  num: 5,  title: "Taste Test",           subtitle: "Cross-Modal Gustatory", emoji: "🍋",  color: "#F43F5E", file: "p5-taste-test.html",       category: "Equivalence" },
-      { id: "p6",  num: 6,  title: "Common Features",      subtitle: "Analogical Reasoning",  emoji: "🦁",  color: "#16A34A", file: "p6-common-features.html",  category: "Equivalence" },
-      { id: "p7",  num: 7,  title: "What Kind of Story?",  subtitle: "Genre Abstraction",     emoji: "📖",  color: "#DB2777", file: "p7-what-kind-of-story.html",category: "Abstraction" },
-      { id: "p8",  num: 8,  title: "The Why Detective",    subtitle: "Interrogative Frame",   emoji: "🕵️",  color: "#2563EB", file: "p8-why-detective.html",    category: "Abstraction" },
-      { id: "p9",  num: 9,  title: "What Kind?",           subtitle: "Descriptive Frame",     emoji: "🎨",  color: "#CA8A04", file: "p9-what-kind.html",        category: "Abstraction" },
-      { id: "p10", num: 10, title: "What Comes Next?",     subtitle: "Inductive Pattern",     emoji: "🧩",  color: "#4F46E5", file: "p10-what-comes-next.html", category: "Abstraction" },
-      { id: "p11", num: 11, title: "Chain Reaction",       subtitle: "Conditional Inference",  emoji: "⛓️",  color: "#E65100", file: "p11-chain-reaction.html",  category: "Inference" },
-      { id: "p12", num: 12, title: "Value Chain",          subtitle: "Values & Actions",       emoji: "🌳",  color: "#2E7D32", file: "p12-value-chain.html",     category: "Inference" },
-      { id: "p13", num: 13, title: "Trait Bridge",         subtitle: "Synonyms & Pictures",    emoji: "🔗",  color: "#5E35B1", file: "p13-trait-bridge.html",    category: "Inference" },
-      { id: "p14", num: 14, title: "Feeling Metaphors",    subtitle: "Emotions & Metaphors",   emoji: "🎭",  color: "#1565C0", file: "p14-feeling-metaphors.html",category: "Inference" },
-      { id: "p15", num: 15, title: "Creative Tools",       subtitle: "Problem Solving",        emoji: "🛠️",  color: "#F57F17", file: "p15-creative-tools.html",  category: "Flexibility" },
-      { id: "p16", num: 16, title: "What to Share",        subtitle: "Social Safety",          emoji: "🔒",  color: "#AD1457", file: "p16-what-to-share.html",   category: "Social" },
-      { id: "p17", num: 17, title: "Name That Thing",      subtitle: "Descriptions & Pictures",emoji: "🔎",  color: "#00695C", file: "p17-name-that-thing.html", category: "Language" },
-      { id: "p18", num: 18, title: "Character Namer",      subtitle: "Creative Naming",        emoji: "🎨",  color: "#6A1B9A", file: "p18-character-namer.html", category: "Language" },
-      { id: "p19", num: 19, title: "Same or Different",    subtitle: "Equivalence Classes",    emoji: "🔀",  color: "#E65100", file: "p19-same-or-different.html",category: "Categorization" },
-      { id: "p20", num: 20, title: "Pronoun Bridge",       subtitle: "Pronoun Families",       emoji: "📝",  color: "#283593", file: "p20-pronoun-bridge.html",  category: "Language" },
+      // ── Translation (P1–2) ──────────────────────────────
+      { id: "p1",  num: 1,  title: "More or Less",         subtitle: "Comparative",            emoji: "⚖️",  color: "#22C55E", file: "p1-more-or-less.html",          category: "Translation" },
+      { id: "p2",  num: 2,  title: "Same & Different",     subtitle: "Coordination",           emoji: "🔍",  color: "#F59E0B", file: "p2-same-and-different.html",    category: "Translation" },
+      // ── Equivalence (P3–6, 19, 29) ──────────────────────
+      { id: "p3",  num: 3,  title: "Symbol Bridge",        subtitle: "Stimulus Equivalence",   emoji: "🌉",  color: "#8B5CF6", file: "p3-symbol-bridge.html",        category: "Equivalence" },
+      { id: "p4",  num: 4,  title: "Scent Match",          subtitle: "Cross-Modal Olfactory",  emoji: "🌸",  color: "#EC4899", file: "p4-scent-match.html",          category: "Equivalence" },
+      { id: "p5",  num: 5,  title: "Taste Test",           subtitle: "Cross-Modal Gustatory",  emoji: "🍋",  color: "#F43F5E", file: "p5-taste-test.html",           category: "Equivalence" },
+      { id: "p6",  num: 6,  title: "Common Features",      subtitle: "Analogical Reasoning",   emoji: "🦁",  color: "#16A34A", file: "p6-common-features.html",      category: "Equivalence" },
+      // ── Abstraction (P7–10, 30) ─────────────────────────
+      { id: "p7",  num: 7,  title: "What Kind of Story?",  subtitle: "Genre Abstraction",      emoji: "📖",  color: "#DB2777", file: "p7-what-kind-of-story.html",   category: "Abstraction" },
+      { id: "p8",  num: 8,  title: "The Why Detective",    subtitle: "Interrogative Frame",    emoji: "🕵️",  color: "#2563EB", file: "p8-why-detective.html",        category: "Abstraction" },
+      { id: "p9",  num: 9,  title: "What Kind?",           subtitle: "Descriptive Frame",      emoji: "🎨",  color: "#CA8A04", file: "p9-what-kind.html",            category: "Abstraction" },
+      { id: "p10", num: 10, title: "What Comes Next?",     subtitle: "Inductive Pattern",      emoji: "🧩",  color: "#4F46E5", file: "p10-what-comes-next.html",     category: "Abstraction" },
+      // ── Inference (P11–14, 31) ──────────────────────────
+      { id: "p11", num: 11, title: "Chain Reaction",       subtitle: "Conditional Inference",   emoji: "⛓️",  color: "#DC2626", file: "p11-chain-reaction.html",      category: "Inference" },
+      { id: "p12", num: 12, title: "Value Chain",          subtitle: "Reverse Derivation",     emoji: "💎",  color: "#7C3AED", file: "p12-value-chain.html",         category: "Inference" },
+      { id: "p13", num: 13, title: "Trait Bridge",         subtitle: "Synonym Inference",      emoji: "🌈",  color: "#0891B2", file: "p13-trait-bridge.html",        category: "Inference" },
+      { id: "p14", num: 14, title: "Feeling Metaphors",    subtitle: "Metaphor",               emoji: "🎭",  color: "#BE185D", file: "p14-feeling-metaphors.html",   category: "Inference" },
+      // ── Social (P15–16) ─────────────────────────────────
+      { id: "p15", num: 15, title: "Creative Tools",       subtitle: "Creative Problem-Solving",emoji: "🛠️", color: "#EA580C", file: "p15-creative-tools.html",     category: "Social" },
+      { id: "p16", num: 16, title: "What to Share",        subtitle: "Pragmatic Disclosure",   emoji: "🤝",  color: "#0D9488", file: "p16-what-to-share.html",       category: "Social" },
+      // ── Language (P17–18, 20) ───────────────────────────
+      { id: "p17", num: 17, title: "Name That Thing",      subtitle: "Description",            emoji: "🏷️",  color: "#6D28D9", file: "p17-name-that-thing.html",     category: "Language" },
+      { id: "p18", num: 18, title: "Character Namer",      subtitle: "Naming",                 emoji: "✏️",  color: "#B91C1C", file: "p18-character-namer.html",     category: "Language" },
+      { id: "p19", num: 19, title: "Same or Different",    subtitle: "Equivalence Class",      emoji: "🎯",  color: "#059669", file: "p19-same-or-different.html",   category: "Equivalence" },
+      { id: "p20", num: 20, title: "Pronoun Bridge",       subtitle: "Pronouns",               emoji: "👤",  color: "#4338CA", file: "p20-pronoun-bridge.html",      category: "Language" },
+      // ── Transformation (P21–28, 32) ─────────────────────
+      { id: "p21", num: 21, title: "Near & Far",           subtitle: "Spatial Comparison",     emoji: "🔭",  color: "#1D4ED8", file: "p21-near-and-far.html",        category: "Transformation" },
+      { id: "p22", num: 22, title: "First Things First",   subtitle: "Temporal Sequencing",    emoji: "⏳",  color: "#B45309", file: "p22-first-things-first.html",   category: "Transformation" },
+      { id: "p23", num: 23, title: "Opposite Day",         subtitle: "Opposition",             emoji: "🔄",  color: "#DC2626", file: "p23-opposite-day.html",        category: "Transformation" },
+      { id: "p24", num: 24, title: "Spot the Difference",  subtitle: "Distinction",            emoji: "👀",  color: "#059669", file: "p24-spot-the-difference.html", category: "Transformation" },
+      { id: "p25", num: 25, title: "Feeling Flip",         subtitle: "Emotional Opposites",    emoji: "💗",  color: "#EC4899", file: "p25-feeling-flip.html",        category: "Transformation" },
+      { id: "p26", num: 26, title: "Season Sense",         subtitle: "Deictic Comparison",     emoji: "🌍",  color: "#22C55E", file: "p26-season-sense.html",        category: "Transformation" },
+      { id: "p27", num: 27, title: "Weather Switch",       subtitle: "Weather Opposites",      emoji: "🌦️",  color: "#3B82F6", file: "p27-weather-switch.html",      category: "Transformation" },
+      { id: "p28", num: 28, title: "Family Flip",          subtitle: "Opposite Relatives",     emoji: "👨‍👩‍👧‍👦", color: "#7E22CE", file: "p28-family-flip.html",        category: "Transformation" },
+      { id: "p29", num: 29, title: "Taste Match",          subtitle: "Taste Equivalence",      emoji: "🍟",  color: "#D97706", file: "p29-taste-match.html",         category: "Equivalence" },
+      { id: "p30", num: 30, title: "What's It Like?",      subtitle: "Feature Derivation",     emoji: "🧂",  color: "#0D9488", file: "p30-whats-it-like.html",       category: "Abstraction" },
+      { id: "p31", num: 31, title: "Where Would You Go?",  subtitle: "Location Inference",     emoji: "🗺️",  color: "#65A30D", file: "p31-where-would-you-go.html",  category: "Inference" },
+      { id: "p32", num: 32, title: "Here & There",         subtitle: "Deictic Reversal",       emoji: "🔀",  color: "#4338CA", file: "p32-here-and-there.html",      category: "Transformation" },
     ];
 
     const CATEGORIES = [
-      { name: "Translation",    color: "#22C55E", range: "1–2",   desc: "Comparative & coordination frames" },
-      { name: "Equivalence",    color: "#8B5CF6", range: "3–6",   desc: "Identity, cross-modal, feature-based" },
-      { name: "Abstraction",    color: "#2563EB", range: "7–10",  desc: "Categorical, interrogative, inductive" },
-      { name: "Inference",      color: "#E65100", range: "11–14", desc: "Conditional, transitive, metaphorical" },
-      { name: "Flexibility",    color: "#F57F17", range: "15",    desc: "Creative problem solving" },
-      { name: "Social",         color: "#AD1457", range: "16",    desc: "Pragmatics & safety awareness" },
-      { name: "Language",       color: "#00695C", range: "17–18, 20", desc: "Naming, description, pronouns" },
-      { name: "Categorization", color: "#795548", range: "19",    desc: "Equivalence class sorting" },
+      { name: "Translation",     color: "#22C55E", range: "1–2",           desc: "Comparative & coordination frames" },
+      { name: "Equivalence",     color: "#8B5CF6", range: "3–6, 19, 29",  desc: "Identity, cross-modal, analogy, taste" },
+      { name: "Abstraction",     color: "#2563EB", range: "7–10, 30",     desc: "Categorical, interrogative, inductive, feature" },
+      { name: "Inference",       color: "#DC2626", range: "11–14, 31",    desc: "Conditional, reverse, synonym, metaphor, location" },
+      { name: "Social",          color: "#0D9488", range: "15–16",        desc: "Creative problem-solving, pragmatic disclosure" },
+      { name: "Language",        color: "#6D28D9", range: "17–18, 20",    desc: "Description, naming, pronouns" },
+      { name: "Transformation",  color: "#EA580C", range: "21–28, 32",    desc: "Spatial, temporal, opposition, deictic, emotional" },
     ];
 
     // ── ACHIEVEMENTS ────────────────────────────────────────
     const ACHIEVEMENTS = [
       { id: "first_steps",     emoji: "👣", title: "First Steps",       desc: "Complete your first session",           check: (p) => p.totalSessions >= 1 },
       { id: "explorer",        emoji: "🗺️", title: "Explorer",          desc: "Try 10 different programs",             check: (p) => Object.keys(p.programs).length >= 10 },
-      { id: "globe_trotter",   emoji: "🌍", title: "Globe Trotter",     desc: "Try all 20 programs",                   check: (p) => Object.keys(p.programs).length >= 20 },
+      { id: "globe_trotter",   emoji: "🌍", title: "Globe Trotter",     desc: "Try all 32 programs",                   check: (p) => Object.keys(p.programs).length >= 32 },
       { id: "five_streak",     emoji: "🔥", title: "On Fire",           desc: "5-day play streak",                     check: (p) => p.streak.best >= 5 },
       { id: "ten_sessions",    emoji: "⭐", title: "Dedicated",         desc: "Complete 10 sessions",                  check: (p) => p.totalSessions >= 10 },
-      { id: "mastery_1",       emoji: "🥇", title: "First Mastery",     desc: "Master any program's training phase",   check: (p) => Object.values(p.programs).some(pr => pr.mastery) },
+      { id: "mastery_1",       emoji: "🥇", title: "First Mastery",     desc: "Master any program",                    check: (p) => Object.values(p.programs).some(pr => pr.mastery) },
       { id: "mastery_5",       emoji: "🏆", title: "Five Star",         desc: "Master 5 programs",                     check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 5 },
-      { id: "mastery_10",      emoji: "🌟", title: "Ten Star",          desc: "Master 10 programs",                    check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
-      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 20 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 20 },
-      { id: "equiv_complete",  emoji: "🔗", title: "Equivalence Pro",   desc: "Master all equivalence programs (3–6)", check: (p) => ["p3","p4","p5","p6"].every(id => p.programs[id]?.mastery) },
-      { id: "abstraction_complete", emoji: "🧠", title: "Abstract Thinker", desc: "Master all abstraction programs (7–10)", check: (p) => ["p7","p8","p9","p10"].every(id => p.programs[id]?.mastery) },
-      { id: "inference_complete",   emoji: "⛓️", title: "Chain Master",     desc: "Master all inference programs (11–14)",  check: (p) => ["p11","p12","p13","p14"].every(id => p.programs[id]?.mastery) },
+      { id: "mastery_10",      emoji: "💫", title: "Ten Strong",        desc: "Master 10 programs",                    check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
+      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 32 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 32 },
+      { id: "equiv_complete",  emoji: "🔗", title: "Equivalence Pro",   desc: "Master all equivalence programs",       check: (p) => ["p3","p4","p5","p6","p19","p29"].every(id => p.programs[id]?.mastery) },
+      { id: "abstraction_complete", emoji: "🧠", title: "Abstract Thinker", desc: "Master all abstraction programs",   check: (p) => ["p7","p8","p9","p10","p30"].every(id => p.programs[id]?.mastery) },
+      { id: "inference_complete", emoji: "🔮", title: "Master Deducer",  desc: "Master all inference programs",         check: (p) => ["p11","p12","p13","p14","p31"].every(id => p.programs[id]?.mastery) },
+      { id: "transform_complete", emoji: "🔄", title: "Shapeshifter",   desc: "Master all transformation programs",    check: (p) => ["p21","p22","p23","p24","p25","p26","p27","p28","p32"].every(id => p.programs[id]?.mastery) },
       { id: "twenty_five",     emoji: "💎", title: "Quarter Century",   desc: "Complete 25 sessions",                  check: (p) => p.totalSessions >= 25 },
-      { id: "fifty_sessions",  emoji: "🔮", title: "Fifty & Fabulous",  desc: "Complete 50 sessions",                  check: (p) => p.totalSessions >= 50 },
+      { id: "fifty_sessions",  emoji: "🎯", title: "Fifty Strong",     desc: "Complete 50 sessions",                  check: (p) => p.totalSessions >= 50 },
     ];
 
     // ── MASTERY RING ────────────────────────────────────────
@@ -299,8 +318,8 @@
 
       const stats = [
         { label: "Sessions", value: totalSessions, emoji: "📊" },
-        { label: "Programs Tried", value: `${programsTried}/20`, emoji: "🎮" },
-        { label: "Mastered", value: `${programsMastered}/20`, emoji: "⭐" },
+        { label: "Programs Tried", value: `${programsTried}/32`, emoji: "🎮" },
+        { label: "Mastered", value: `${programsMastered}/32`, emoji: "⭐" },
         { label: "Day Streak", value: streak, emoji: "🔥" },
         { label: "Achievements", value: `${achievementsEarned}/${ACHIEVEMENTS.length}`, emoji: "🏅" },
       ];
@@ -322,7 +341,7 @@
     // ── CATEGORY TABS + PROGRESS BAR ────────────────────────
     const CategoryProgress = ({ progress }) => {
       return (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {CATEGORIES.map(cat => {
             const progs = PROGRAMS.filter(p => p.category === cat.name);
             const mastered = progs.filter(p => progress.programs[p.id]?.mastery).length;
@@ -338,7 +357,7 @@
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${pct}%`, backgroundColor: cat.color }} />
                 </div>
-                <div className="nunito text-[10px] text-gray-500 mt-0.5">{mastered}/{progs.length}</div>
+                <div className="nunito text-[10px] text-gray-500 mt-0.5">{mastered}/{progs.length} mastered</div>
               </div>
             );
           })}
@@ -375,7 +394,7 @@
 
       return (
         <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
 
             {/* ── HEADER ────────────────────────────────── */}
             <header className="text-center mb-6 anim-fadein">
@@ -385,7 +404,7 @@
                 </h1>
               </div>
               <p className="nunito text-gray-500 text-sm sm:text-base max-w-lg mx-auto">
-                Relational Frame Training Suite — 20 programs building language and reasoning through play
+                Relational Frame Training Suite — 32 programs building language and reasoning through play
               </p>
               <p className="nunito text-xs text-gray-400 mt-1">Syntopic Systems</p>
             </header>
@@ -422,7 +441,7 @@
 
             {/* ── GAMES GRID ─────────────────────────────── */}
             {tab === "games" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {PROGRAMS.map((prog, i) => (
                   <ProgramCard key={prog.id} program={prog} progress={progress} index={i} />
                 ))}

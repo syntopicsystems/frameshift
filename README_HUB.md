@@ -1,17 +1,28 @@
 # FrameShift Hub — README
 
 **File:** `index.html`  
-**Purpose:** Navigation hub, progress tracker, and achievement system for the FrameShift RFT Game Suite  
-**Version:** 2.0
+**Purpose:** Navigation hub, progress tracker, and achievement system for the FrameShift RFT Game Suite
 
 ## What It Does
 
-Central landing page for the 20-program suite. Displays:
-- **Overview stats** — total sessions, programs tried (/20), programs mastered (/20), day streak, achievements earned
-- **Category progress bars** — 8 categories: Translation (P1–2), Equivalence (P3–6), Abstraction (P7–10), Inference (P11–14), Flexibility (P15), Social (P16), Language (P17–18, P20), Categorization (P19)
-- **Program grid** — clickable cards with mastery rings, star ratings, session counts
-- **Achievement badges** — 14 unlockable achievements with earned/locked states
+Central landing page for the 32-program suite. Displays:
+- **Overview stats** — total sessions, programs tried (/32), programs mastered (/32), day streak, achievements earned
+- **Category progress bars** — 7 categories in a responsive grid
+- **Program grid** — clickable cards with mastery rings, star ratings, session counts (4-column on wide screens)
+- **Achievement badges** — 15 unlockable achievements with earned/locked states
 - **Session log** — per-program history showing train/test scores by date
+
+## Category Structure
+
+| Category | Programs | Color |
+|----------|----------|-------|
+| Translation | P1–2 | Green |
+| Equivalence | P3–6, 19, 29 | Purple |
+| Abstraction | P7–10, 30 | Blue |
+| Inference | P11–14, 31 | Red |
+| Social | P15–16 | Teal |
+| Language | P17–18, 20 | Violet |
+| Transformation | P21–28, 32 | Orange |
 
 ## Visual Design
 
@@ -19,7 +30,7 @@ Central landing page for the 20-program suite. Displays:
 - **Glassmorphism cards** — `backdrop-filter: blur(12px)` with semi-transparent white backgrounds
 - **Mastery rings** — conic-gradient progress indicators around each program emoji
 - **Star ratings** — 0–3 stars: 0 = untouched, 1 = played, 2 = reached test phase, 3 = mastered
-- **Category grid** — 2×4 grid on mobile, 4×2 on desktop, compact progress bars per category
+- **Responsive grid** — 1 col mobile, 2 col tablet, 3 col desktop, 4 col wide
 
 ## Data Schema
 
@@ -51,45 +62,21 @@ Games write to this via `window.FrameShift.saveSession()` (injected into each ga
 |----|-------|-------|---------|
 | `first_steps` | 👣 | First Steps | totalSessions ≥ 1 |
 | `explorer` | 🗺️ | Explorer | programs tried ≥ 10 |
-| `globe_trotter` | 🌍 | Globe Trotter | programs tried ≥ 20 |
+| `globe_trotter` | 🌍 | Globe Trotter | programs tried ≥ 32 |
 | `five_streak` | 🔥 | On Fire | streak.best ≥ 5 |
 | `ten_sessions` | ⭐ | Dedicated | totalSessions ≥ 10 |
 | `mastery_1` | 🥇 | First Mastery | any program mastered |
 | `mastery_5` | 🏆 | Five Star | 5 programs mastered |
-| `mastery_10` | 🌟 | Ten Star | 10 programs mastered |
-| `mastery_all` | 👑 | FrameShift Master | all 20 mastered |
-| `equiv_complete` | 🔗 | Equivalence Pro | P3–P6 all mastered |
-| `abstraction_complete` | 🧠 | Abstract Thinker | P7–P10 all mastered |
-| `inference_complete` | ⛓️ | Chain Master | P11–P14 all mastered |
+| `mastery_10` | 💫 | Ten Strong | 10 programs mastered |
+| `mastery_all` | 👑 | FrameShift Master | all 32 mastered |
+| `equiv_complete` | 🔗 | Equivalence Pro | P3–6, 19, 29 all mastered |
+| `abstraction_complete` | 🧠 | Abstract Thinker | P7–10, 30 all mastered |
+| `inference_complete` | 🔮 | Master Deducer | P11–14, 31 all mastered |
+| `transform_complete` | 🔄 | Shapeshifter | P21–28, 32 all mastered |
 | `twenty_five` | 💎 | Quarter Century | totalSessions ≥ 25 |
-| `fifty_sessions` | 🔮 | Fifty & Fabulous | totalSessions ≥ 50 |
+| `fifty_sessions` | 🎯 | Fifty Strong | totalSessions ≥ 50 |
 
 Achievements are computed on-the-fly from progress data (no separate storage needed).
-
-## Program Registry
-
-| ID | Title | Category |
-|----|-------|----------|
-| P1 | More or Less | Translation |
-| P2 | Same & Different | Translation |
-| P3 | Symbol Bridge | Equivalence |
-| P4 | Scent Match | Equivalence |
-| P5 | Taste Test | Equivalence |
-| P6 | Common Features | Equivalence |
-| P7 | What Kind of Story? | Abstraction |
-| P8 | The Why Detective | Abstraction |
-| P9 | What Kind? | Abstraction |
-| P10 | What Comes Next? | Abstraction |
-| P11 | Chain Reaction | Inference |
-| P12 | Value Chain | Inference |
-| P13 | Trait Bridge | Inference |
-| P14 | Feeling Metaphors | Inference |
-| P15 | Creative Tools | Flexibility |
-| P16 | What to Share | Social |
-| P17 | Name That Thing | Language |
-| P18 | Character Namer | Language |
-| P19 | Same or Different | Categorization |
-| P20 | Pronoun Bridge | Language |
 
 ## Navigation
 

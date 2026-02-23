@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's It Like? — FrameShift P30</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(pid,ts,tm,xs,xm,m){var d=this.load()||{programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};if(!d.programs)d.programs={};if(!d.programs[pid])d.programs[pid]={sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};var p=d.programs[pid];p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});if(ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train))p.bestScore.train=ts;if(xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test))p.bestScore.test=xs;if(m)p.mastery=true;p.lastPlayed=new Date().toISOString();d.totalSessions=(d.totalSessions||0)+1;var today=new Date().toISOString().slice(0,10);if(!d.streak)d.streak={current:0,best:0,lastDate:null};if(d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}d.streak.lastDate=today;if(d.streak.current>d.streak.best)d.streak.best=d.streak.current;this.save(d);}};
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    .fredoka{font-family:'Fredoka',sans-serif;} .nunito{font-family:'Nunito',sans-serif;}
+    body{background:linear-gradient(135deg,#134e4a 0%,#0d9488 30%,#14b8a6 55%,#5eead4 80%,#ccfbf1 100%);min-height:100vh;}
+    .glass{background:rgba(255,255,255,0.1);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.15);}
+    .glass-bright{background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);}
+    .card-shadow{box-shadow:2px 4px 16px rgba(0,0,0,0.2);}
+    .caregiver-panel{border:2px dashed #fbbf24;background:rgba(251,191,36,0.1);}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+    .anim-fadein{animation:fadeIn 0.4s ease-out both;}.anim-pop{animation:pop 0.3s ease-in-out;}.anim-wiggle{animation:wiggle 0.4s ease-in-out;}
+    .frameshift-back{position:fixed;top:12px;left:12px;z-index:50;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);padding:6px 16px;border-radius:20px;text-decoration:none;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;}
+    .frameshift-back:hover{background:rgba(255,255,255,0.25);color:#fff;}
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const{useState,useCallback}=React;
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    function playSound(t){try{if(audioCtx.state==="suspended")audioCtx.resume();const n=audioCtx.currentTime;if(t==="correct"){[440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.1);o.stop(n+i*0.1+0.3);});}else if(t==="incorrect"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.35);}else if(t==="neutral"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.25);}else if(t==="complete"){[523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.12);o.stop(n+i*0.12+0.4);});}}catch(e){}}
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    // Items with feature, name, and emoji
+    const ITEMS=[
+      {feature:"salty",item:{emoji:"🥨",label:"Pretzel"},featureEmoji:"🧂"},
+      {feature:"sweet",item:{emoji:"🍪",label:"Cookie"},featureEmoji:"🍬"},
+      {feature:"cold",item:{emoji:"🍦",label:"Ice Cream"},featureEmoji:"❄️"},
+      {feature:"crunchy",item:{emoji:"🥕",label:"Carrot"},featureEmoji:"💥"},
+      {feature:"soft",item:{emoji:"🧸",label:"Teddy Bear"},featureEmoji:"☁️"},
+      {feature:"sharp",item:{emoji:"✏️",label:"Pencil"},featureEmoji:"📌"},
+      {feature:"smooth",item:{emoji:"🥚",label:"Egg"},featureEmoji:"✨"},
+      {feature:"warm",item:{emoji:"☕",label:"Hot Cocoa"},featureEmoji:"🔥"},
+    ];
+
+    // Y-Z scenarios: array of items, pick one and describe it
+    const SCENARIOS=[
+      {items:[{emoji:"✏️",label:"Pencil"},{emoji:"🥤",label:"Cup"},{emoji:"🧸",label:"Teddy Bear"}],prompt:"You want something from here. Pick one and describe it!"},
+      {items:[{emoji:"🍎",label:"Apple"},{emoji:"📚",label:"Book"},{emoji:"⚽",label:"Ball"}],prompt:"Choose what you want. How would you describe it?"},
+      {items:[{emoji:"🧣",label:"Scarf"},{emoji:"🕶️",label:"Sunglasses"},{emoji:"👟",label:"Sneakers"}],prompt:"Pick one you'd like. How does it feel or what does it do?"},
+      {items:[{emoji:"🍕",label:"Pizza"},{emoji:"🥗",label:"Salad"},{emoji:"🍩",label:"Donut"}],prompt:"You're hungry! Pick one and describe how it tastes!"},
+    ];
+
+    const TRAIN_AB=4;const TRAIN_BC=4;const TRAIN_COUNT=TRAIN_AB+TRAIN_BC;const TRAIN_THRESHOLD=6;
+    const TEST_CA=4;const TEST_YZ=4;const TEST_TOTAL=TEST_CA+TEST_YZ;
+
+    function App(){
+      const[phase,setPhase]=useState("intro");
+      const[trials,setTrials]=useState([]);
+      const[trialIdx,setTrialIdx]=useState(0);
+      const[trainScore,setTrainScore]=useState(0);
+      const[testScore,setTestScore]=useState(0);
+      const[feedback,setFeedback]=useState(null);
+      const[hl,setHl]=useState({});
+      const[response,setResponse]=useState("");
+      const[chosen,setChosen]=useState(null);
+
+      const startTrain=useCallback(()=>{
+        const t=[];
+        // A-B: feature → pick item
+        shuffle(ITEMS).slice(0,TRAIN_AB).forEach(it=>{
+          const dist=shuffle(ITEMS.filter(x=>x.feature!==it.feature)).slice(0,2).map(x=>x.item);
+          const opts=shuffle([{...it.item,correct:true},...dist.map(d=>({...d,correct:false}))]);
+          t.push({type:"train_ab",feature:it.feature,featureEmoji:it.featureEmoji,options:opts,correctIdx:opts.findIndex(o=>o.correct),
+            fb:`A ${it.item.label} is ${it.feature}!`});
+        });
+        // B-C: item → pick name
+        shuffle(ITEMS).slice(0,TRAIN_BC).forEach(it=>{
+          const dist=shuffle(ITEMS.filter(x=>x.feature!==it.feature)).slice(0,2).map(x=>x.item.label);
+          const opts=shuffle([it.item.label,...dist]);
+          t.push({type:"train_bc",itemEmoji:it.item.emoji,correctName:it.item.label,options:opts,correctIdx:opts.indexOf(it.item.label),
+            fb:`That's a ${it.item.label}!`});
+        });
+        setTrials(shuffle(t));setTrialIdx(0);setTrainScore(0);setTestScore(0);setFeedback(null);setHl({});setResponse("");setChosen(null);setPhase("train");
+      },[]);
+
+      const startTest=useCallback(()=>{
+        const t=[];
+        // C-A: name → pick feature (derived, never trained this direction)
+        shuffle(ITEMS).slice(0,TEST_CA).forEach(it=>{
+          const dist=shuffle(ITEMS.filter(x=>x.feature!==it.feature)).slice(0,2).map(x=>x.feature);
+          const opts=shuffle([it.feature,...dist]);
+          t.push({type:"test_ca",name:it.item.label,itemEmoji:it.item.emoji,options:opts,correctIdx:opts.indexOf(it.feature)});
+        });
+        // Y-Z: pick item and describe (caregiver scored)
+        shuffle(SCENARIOS).slice(0,TEST_YZ).forEach(sc=>{
+          t.push({type:"test_yz",...sc});
+        });
+        setTrials(t);setTrialIdx(0);setTestScore(0);setFeedback(null);setHl({});setResponse("");setChosen(null);setPhase("test");
+      },[]);
+
+      const trial=trials[trialIdx]||null;const isTrain=phase==="train";
+
+      const advance=useCallback((correct)=>{
+        setTimeout(()=>{setFeedback(null);setHl({});setResponse("");setChosen(null);
+          if(trialIdx+1<trials.length){setTrialIdx(i=>i+1);}
+          else if(phase==="train"){const ts=trainScore+(correct?1:0);if(ts>=TRAIN_THRESHOLD)startTest();else{if(window.FrameShift)window.FrameShift.saveSession("p30",ts,TRAIN_COUNT,null,null,false);setTrainScore(ts);setPhase("done");}}
+          else{const xs=testScore+(correct?1:0);playSound("complete");if(window.FrameShift)window.FrameShift.saveSession("p30",trainScore,TRAIN_COUNT,xs,TEST_TOTAL,xs>=Math.ceil(TEST_TOTAL*0.75));setTestScore(xs);setPhase("done");}
+        },isTrain?1800:1200);
+      },[trialIdx,trials,phase,trainScore,testScore,startTest]);
+
+      const pick=(idx)=>{
+        if(feedback)return;const c=idx===trial.correctIdx;
+        if(c){playSound(isTrain?"correct":"neutral");setHl({[idx]:isTrain?"correct":"neutral"});if(isTrain)setTrainScore(s=>s+1);else setTestScore(s=>s+1);}
+        else{playSound(isTrain?"incorrect":"neutral");setHl({[idx]:isTrain?"incorrect":"neutral",...(isTrain?{[trial.correctIdx]:"correct"}:{})});}
+        setFeedback({correct:c});advance(c);
+      };
+
+      const handleCaregiver=(level)=>{
+        const c=level==="correct";
+        if(c){playSound("neutral");setTestScore(s=>s+1);}
+        else if(level==="partial"){playSound("neutral");setTestScore(s=>s+0.5);}
+        else playSound("neutral");
+        setFeedback({type:level});advance(c);
+      };
+
+      if(phase==="intro")return(
+        <div className="min-h-screen flex items-center justify-center px-4"><div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+          <div className="text-6xl mb-4">🧂</div>
+          <h1 className="fredoka text-3xl font-bold text-white mb-2">What's It Like?</h1>
+          <p className="nunito text-white/80 mb-4">Everything has features! Salty, sweet, soft, crunchy. Match features to items, name them, and describe what you want!</p>
+          <div className="caregiver-panel rounded-xl p-3 mb-4"><p className="nunito text-sm text-yellow-100 font-bold">🧑‍🏫 Caregiver needed for description scoring</p></div>
+          <button onClick={startTrain} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#0d9488,#14b8a6)"}}>Let's Explore! 🧂</button>
+        </div></div>);
+
+      if(phase==="done"){const passed=trainScore>=TRAIN_THRESHOLD,mastered=testScore>=Math.ceil(TEST_TOTAL*0.75);
+        return(<div className="min-h-screen flex items-center justify-center px-4"><div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+          <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🧂"}</div>
+          <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Feature Expert!":"Nice Work!"):"Keep Exploring!"}</h2>
+          <div className="space-y-3 mb-6">
+            <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore}/{TRAIN_COUNT}</p></div>
+            {passed&&<div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{Math.round(testScore)}/{TEST_TOTAL}</p></div>}
+            {!passed&&<p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} to unlock the test!</p>}
+          </div>
+          <div className="flex flex-col gap-3">
+            <button onClick={startTrain} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#0d9488,#14b8a6)"}}>Play Again 🧂</button>
+            <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-teal-200 hover:text-white hover:bg-white/10 transition-all border border-teal-300/30">← Back to FrameShift</a>
+          </div>
+        </div></div>);}
+
+      if(!trial)return null;
+
+      // TRAIN A-B: feature → pick item
+      if(trial.type==="train_ab"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — Feature → Item</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#14b8a6,#0d9488)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="text-center mb-2"><span style={{fontSize:48}}>{trial.featureEmoji}</span></div>
+            <h2 className="fredoka text-lg text-white text-center mb-4">Which one is <span className="text-teal-200">{trial.feature}</span>?</h2>
+            <div className="flex justify-center gap-3">
+              {trial.options.map((o,i)=>(<button key={i} onClick={()=>pick(i)} disabled={!!feedback} className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer card-shadow ${hl[i]==="correct"?"ring-4 ring-green-400 bg-green-50 anim-pop":""} ${hl[i]==="incorrect"?"ring-4 ring-red-300 bg-red-50 anim-wiggle":""} ${!hl[i]?"glass-bright hover:scale-105":"glass-bright"}`} style={{minWidth:90,minHeight:85}}><span style={{fontSize:32}}>{o.emoji}</span><span className="nunito text-xs font-bold text-gray-700 mt-1">{o.label}</span></button>))}
+            </div>
+            {feedback&&<p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.correct?"text-green-300":"text-amber-300"}`}>{feedback.correct?"✅ That's right!":"Not quite — "+trial.fb}</p>}
+          </div>
+        </div>);
+      }
+
+      // TRAIN B-C: item → pick name
+      if(trial.type==="train_bc"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — What's It Called?</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#14b8a6,#0d9488)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="text-center mb-3"><span style={{fontSize:64}}>{trial.itemEmoji}</span></div>
+            <h2 className="fredoka text-lg text-white text-center mb-4">What is this called?</h2>
+            <div className="flex justify-center gap-3">
+              {trial.options.map((name,i)=>(<button key={i} onClick={()=>pick(i)} disabled={!!feedback} className={`px-5 py-3 rounded-xl fredoka text-lg font-bold transition-all ${hl[i]==="correct"?"bg-green-400 text-white anim-pop":""} ${hl[i]==="incorrect"?"bg-red-300 text-white anim-wiggle":""} ${!hl[i]?"glass-bright text-gray-700 hover:scale-105 cursor-pointer":"glass-bright"}`}>{name}</button>))}
+            </div>
+            {feedback&&<p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.correct?"text-green-300":"text-amber-300"}`}>{feedback.correct?"✅ That's right!":"Not quite — "+trial.fb}</p>}
+          </div>
+        </div>);
+      }
+
+      // TEST C-A: name → pick feature (derived)
+      if(trial.type==="test_ca"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — How Does It Feel?</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#5eead4,#14b8a6)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="text-center mb-2"><span style={{fontSize:48}}>{trial.itemEmoji}</span></div>
+            <h2 className="fredoka text-lg text-white text-center mb-1">How is a {trial.name}?</h2>
+            <p className="nunito text-xs text-white/50 text-center mb-4">Pick the feature that describes it</p>
+            <div className="flex justify-center gap-3">
+              {trial.options.map((feat,i)=>(<button key={i} onClick={()=>pick(i)} disabled={!!feedback} className={`px-5 py-3 rounded-xl fredoka text-lg font-bold transition-all capitalize ${hl[i]==="neutral"?"bg-teal-300 text-white":""} ${!hl[i]?"glass-bright text-gray-700 hover:scale-105 cursor-pointer":"glass-bright"}`}>{feat}</button>))}
+            </div>
+            {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+        </div>);
+      }
+
+      // TEST Y-Z: pick and describe (caregiver scored)
+      if(trial.type==="test_yz"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Describe What You Want</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#5eead4,#14b8a6)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <h2 className="fredoka text-lg text-white text-center mb-4">{trial.prompt}</h2>
+            <div className="flex justify-center gap-3 mb-4">
+              {trial.items.map((it,i)=>(<div key={i} onClick={()=>!feedback&&setChosen(i)} className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer card-shadow ${chosen===i?"ring-4 ring-teal-400 glass-bright":"glass-bright hover:scale-105"}`} style={{minWidth:85,minHeight:85}}>
+                <span style={{fontSize:32}}>{it.emoji}</span><span className="nunito text-xs font-bold text-gray-700 mt-1">{it.label}</span>
+              </div>))}
+            </div>
+            {chosen!==null&&!feedback&&(
+              <div className="caregiver-panel rounded-xl p-4 anim-fadein">
+                <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Ask: "What do you want, and how would you describe it?"</p>
+                <p className="nunito text-xs text-yellow-100/70 mb-2">Child picked: {trial.items[chosen].label}. Did they describe a feature?</p>
+                <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito"/>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={()=>handleCaregiver("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold">✅ Described</button>
+                  <button onClick={()=>handleCaregiver("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold">🟡 Vague</button>
+                  <button onClick={()=>handleCaregiver("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold">❌ Couldn't</button>
+                </div>
+              </div>
+            )}
+            {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+        </div>);
+      }
+
+      return null;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Here & There — FrameShift P32</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var r=localStorage.getItem(this.STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(pid,ts,tm,xs,xm,m){var d=this.load()||{programs:{},achievements:{},totalSessions:0,streak:{current:0,best:0,lastDate:null}};if(!d.programs)d.programs={};if(!d.programs[pid])d.programs[pid]={sessions:[],bestScore:{train:null,test:null},mastery:false,lastPlayed:null};var p=d.programs[pid];p.sessions.push({date:new Date().toISOString(),trainScore:ts,trainMax:tm,testScore:xs||null,testMax:xm||null});if(ts!==null&&(p.bestScore.train===null||ts>p.bestScore.train))p.bestScore.train=ts;if(xs!==null&&(p.bestScore.test===null||xs>p.bestScore.test))p.bestScore.test=xs;if(m)p.mastery=true;p.lastPlayed=new Date().toISOString();d.totalSessions=(d.totalSessions||0)+1;var today=new Date().toISOString().slice(0,10);if(!d.streak)d.streak={current:0,best:0,lastDate:null};if(d.streak.lastDate!==today){if(d.streak.lastDate){var diff=Math.floor((new Date(today)-new Date(d.streak.lastDate))/86400000);d.streak.current=diff===1?d.streak.current+1:1;}else{d.streak.current=1;}}d.streak.lastDate=today;if(d.streak.current>d.streak.best)d.streak.best=d.streak.current;this.save(d);}};
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    .fredoka{font-family:'Fredoka',sans-serif;} .nunito{font-family:'Nunito',sans-serif;}
+    body{background:linear-gradient(180deg,#0f172a 0%,#1e1b4b 25%,#312e81 50%,#4338ca 70%,#6366f1 85%,#a5b4fc 100%);min-height:100vh;}
+    .glass{background:rgba(255,255,255,0.1);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.15);}
+    .glass-bright{background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);}
+    .card-shadow{box-shadow:2px 4px 16px rgba(0,0,0,0.3);}
+    .caregiver-panel{border:2px dashed #fbbf24;background:rgba(251,191,36,0.1);}
+    .here-tag{background:#22c55e;color:white;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:800;}
+    .there-tag{background:#3b82f6;color:white;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:800;}
+    .swap-arrow{color:#fbbf24;font-size:24px;animation:swapPulse 1.5s ease-in-out infinite;}
+    @keyframes fadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+    @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+    @keyframes swapPulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+    .anim-fadein{animation:fadeIn 0.4s ease-out both;}.anim-pop{animation:pop 0.3s ease-in-out;}.anim-wiggle{animation:wiggle 0.4s ease-in-out;}
+    .frameshift-back{position:fixed;top:12px;left:12px;z-index:50;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);padding:6px 16px;border-radius:20px;text-decoration:none;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);transition:all 0.2s;}
+    .frameshift-back:hover{background:rgba(255,255,255,0.25);color:#fff;}
+  </style>
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const{useState,useCallback}=React;
+    const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    function playSound(t){try{if(audioCtx.state==="suspended")audioCtx.resume();const n=audioCtx.currentTime;if(t==="correct"){[440,554,659].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.1);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.1+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.1);o.stop(n+i*0.1+0.3);});}else if(t==="incorrect"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.setValueAtTime(330,n);o.frequency.linearRampToValueAtTime(220,n+0.3);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.3);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.35);}else if(t==="neutral"){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=440;g.gain.setValueAtTime(0.1,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.2);o.connect(g);g.connect(audioCtx.destination);o.start(n);o.stop(n+0.25);}else if(t==="complete"){[523,587,659,784,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.15,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.connect(g);g.connect(audioCtx.destination);o.start(n+i*0.12);o.stop(n+i*0.12+0.4);});}}catch(e){}}
+    function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+    // Location pairs with objects
+    const PAIRS=[
+      {here:{name:"Classroom",emoji:"🏫",objects:[{emoji:"📝",label:"Pencils"},{emoji:"📚",label:"Books"}]},
+       there:{name:"Playground",emoji:"🛝",objects:[{emoji:"⚽",label:"Soccer Ball"},{emoji:"🤸",label:"Jump Rope"}]}},
+      {here:{name:"Living Room",emoji:"🛋️",objects:[{emoji:"📺",label:"TV"},{emoji:"🛋️",label:"Couch"}]},
+       there:{name:"Backyard",emoji:"🌿",objects:[{emoji:"🌻",label:"Flowers"},{emoji:"🐕",label:"Dog"}]}},
+      {here:{name:"City",emoji:"🏙️",objects:[{emoji:"🚗",label:"Cars"},{emoji:"🏢",label:"Buildings"}]},
+       there:{name:"Farm",emoji:"🌾",objects:[{emoji:"🐄",label:"Cows"},{emoji:"🚜",label:"Tractor"}]}},
+      {here:{name:"Mountain",emoji:"🏔️",objects:[{emoji:"🦅",label:"Eagles"},{emoji:"⛷️",label:"Skis"}]},
+       there:{name:"Ocean",emoji:"🌊",objects:[{emoji:"🐠",label:"Fish"},{emoji:"🚢",label:"Boats"}]}},
+      {here:{name:"Winter",emoji:"❄️",objects:[{emoji:"⛄",label:"Snowman"},{emoji:"🧤",label:"Gloves"}]},
+       there:{name:"Summer",emoji:"☀️",objects:[{emoji:"🏖️",label:"Beach Towel"},{emoji:"🍦",label:"Ice Cream"}]}},
+      {here:{name:"Morning",emoji:"🌅",objects:[{emoji:"🥣",label:"Cereal"},{emoji:"☕",label:"Juice"}]},
+       there:{name:"Night",emoji:"🌙",objects:[{emoji:"🛏️",label:"Bed"},{emoji:"🧸",label:"Teddy Bear"}]}},
+    ];
+
+    const TRAIN_COUNT=8;const TRAIN_THRESHOLD=6;
+    const TEST_REV=4;const TEST_YZ=4;const TEST_TOTAL=TEST_REV+TEST_YZ;
+
+    function buildTraining(){
+      const t=[];
+      // Show pair, ask "what is HERE?" (pick correct objects)
+      const pool=shuffle(PAIRS).slice(0,4);
+      pool.forEach(p=>{
+        // Q1: what's HERE?
+        const hObj=p.here.objects[0];const tObj=p.there.objects[0];
+        const opts1=shuffle([{...hObj,correct:true},{...tObj,correct:false},{...shuffle(PAIRS.filter(x=>x!==p))[0].here.objects[0],correct:false}]);
+        t.push({type:"train_here",pair:p,options:opts1,correctIdx:opts1.findIndex(o=>o.correct),
+          prompt:`${p.here.name} is HERE. What would you find HERE?`,fb:`${hObj.label} is here in the ${p.here.name}!`});
+        // Q2: what's THERE?
+        const tObj2=p.there.objects[Math.floor(Math.random()*p.there.objects.length)];
+        const opts2=shuffle([{...tObj2,correct:true},{...p.here.objects[0],correct:false},{...shuffle(PAIRS.filter(x=>x!==p))[0].there.objects[0],correct:false}]);
+        t.push({type:"train_there",pair:p,options:opts2,correctIdx:opts2.findIndex(o=>o.correct),
+          prompt:`${p.there.name} is THERE. What would you find THERE?`,fb:`${tObj2.label} is there in the ${p.there.name}!`});
+      });
+      return shuffle(t);
+    }
+
+    function buildTest(){
+      const t=[];
+      // REVERSAL: if HERE were [there] and [there] were HERE, what would be HERE now?
+      shuffle(PAIRS).slice(0,TEST_REV).forEach(p=>{
+        // After swap: HERE objects = there.objects, THERE objects = here.objects
+        const correctObj=p.there.objects[0]; // was THERE, now HERE
+        const wrongObj=p.here.objects[0]; // was HERE, now THERE
+        const dist=shuffle(PAIRS.filter(x=>x!==p))[0].here.objects[0];
+        const opts=shuffle([{...correctObj,correct:true},{...wrongObj,correct:false},{...dist,correct:false}]);
+        t.push({type:"test_rev",pair:p,options:opts,correctIdx:opts.findIndex(o=>o.correct),
+          prompt:`If HERE were ${p.there.name} and ${p.there.name} were HERE... what would be HERE now?`});
+      });
+      // Y-Z: show current scene, pick where you'd rather be, then predict swap
+      shuffle(PAIRS).slice(0,TEST_YZ).forEach(p=>{
+        // Ask: after choosing preferred, what would be HERE if we swapped?
+        // Use caregiver scoring since this involves verbal production
+        t.push({type:"test_yz",pair:p});
+      });
+      return t;
+    }
+
+    function App(){
+      const[phase,setPhase]=useState("intro");
+      const[trials,setTrials]=useState([]);
+      const[trialIdx,setTrialIdx]=useState(0);
+      const[trainScore,setTrainScore]=useState(0);
+      const[testScore,setTestScore]=useState(0);
+      const[feedback,setFeedback]=useState(null);
+      const[hl,setHl]=useState({});
+      const[yzStep,setYzStep]=useState(0); // 0=choose, 1=predict
+      const[chosen,setChosen]=useState(null);
+      const[response,setResponse]=useState("");
+
+      const startTrain=useCallback(()=>{setTrials(buildTraining());setTrialIdx(0);setTrainScore(0);setTestScore(0);setFeedback(null);setHl({});setYzStep(0);setChosen(null);setResponse("");setPhase("train");},[]);
+      const startTest=useCallback(()=>{setTrials(buildTest());setTrialIdx(0);setTestScore(0);setFeedback(null);setHl({});setYzStep(0);setChosen(null);setResponse("");setPhase("test");},[]);
+      const trial=trials[trialIdx]||null;const isTrain=phase==="train";
+
+      const advance=useCallback((correct)=>{
+        setTimeout(()=>{setFeedback(null);setHl({});setYzStep(0);setChosen(null);setResponse("");
+          if(trialIdx+1<trials.length){setTrialIdx(i=>i+1);}
+          else if(phase==="train"){const ts=trainScore+(correct?1:0);if(ts>=TRAIN_THRESHOLD)startTest();else{if(window.FrameShift)window.FrameShift.saveSession("p32",ts,TRAIN_COUNT,null,null,false);setTrainScore(ts);setPhase("done");}}
+          else{const xs=testScore+(correct?1:0);playSound("complete");if(window.FrameShift)window.FrameShift.saveSession("p32",trainScore,TRAIN_COUNT,xs,TEST_TOTAL,xs>=Math.ceil(TEST_TOTAL*0.75));setTestScore(xs);setPhase("done");}
+        },1200);
+      },[trialIdx,trials,phase,trainScore,testScore,startTest]);
+
+      const pick=(idx)=>{if(feedback)return;const c=idx===trial.correctIdx;
+        if(c){playSound(isTrain?"correct":"neutral");setHl({[idx]:isTrain?"correct":"neutral"});if(isTrain)setTrainScore(s=>s+1);else setTestScore(s=>s+1);}
+        else{playSound(isTrain?"incorrect":"neutral");setHl({[idx]:isTrain?"incorrect":"neutral",...(isTrain?{[trial.correctIdx]:"correct"}:{})});}
+        setFeedback({correct:c});advance(c);};
+
+      const handleCaregiver=(level)=>{
+        const c=level==="correct";
+        if(c){playSound("neutral");setTestScore(s=>s+1);}
+        else if(level==="partial"){playSound("neutral");setTestScore(s=>s+0.5);}
+        else playSound("neutral");
+        setFeedback({type:level});advance(c);};
+
+      // Location display component
+      const LocationBox=({loc,tag,compact})=>(
+        <div className="glass-bright rounded-2xl p-3 text-center card-shadow" style={{minWidth:compact?100:130}}>
+          <span className={tag==="HERE"?"here-tag":"there-tag"}>{tag}</span>
+          <div className="mt-2"><span style={{fontSize:compact?28:36}}>{loc.emoji}</span></div>
+          <p className="nunito text-xs font-bold text-gray-700">{loc.name}</p>
+          <div className="flex justify-center gap-1 mt-1">
+            {loc.objects.map((o,i)=><span key={i} style={{fontSize:compact?16:20}} title={o.label}>{o.emoji}</span>)}
+          </div>
+        </div>
+      );
+
+      if(phase==="intro")return(
+        <div className="min-h-screen flex items-center justify-center px-4"><div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+          <div className="text-6xl mb-4">🔄</div>
+          <h1 className="fredoka text-3xl font-bold text-white mb-2">Here & There</h1>
+          <p className="nunito text-white/80 mb-4">Some things are HERE and some things are THERE. But what if HERE and THERE switched places? Can you figure out what would be where?</p>
+          <div className="caregiver-panel rounded-xl p-3 mb-4"><p className="nunito text-sm text-yellow-100 font-bold">🧑‍🏫 Caregiver needed for verbal responses</p></div>
+          <button onClick={startTrain} className="px-8 py-3 rounded-2xl fredoka text-lg font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#4338ca,#6366f1)"}}>Let's Switch! 🔄</button>
+        </div></div>);
+
+      if(phase==="done"){const passed=trainScore>=TRAIN_THRESHOLD,mastered=testScore>=Math.ceil(TEST_TOTAL*0.75);
+        return(<div className="min-h-screen flex items-center justify-center px-4"><div className="glass rounded-3xl p-8 max-w-md text-center anim-fadein card-shadow">
+          <div className="text-6xl mb-4">{passed?(mastered?"🌟":"⭐"):"🔄"}</div>
+          <h2 className="fredoka text-2xl font-bold text-white mb-4">{passed?(mastered?"Perspective Pro!":"Nice Thinking!"):"Keep Practicing!"}</h2>
+          <div className="space-y-3 mb-6">
+            <div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Training</p><p className="fredoka text-xl text-white font-bold">{trainScore}/{TRAIN_COUNT}</p></div>
+            {passed&&<div className="glass rounded-xl p-3"><p className="nunito text-sm text-white/70">Test</p><p className="fredoka text-xl text-white font-bold">{Math.round(testScore)}/{TEST_TOTAL}</p></div>}
+            {!passed&&<p className="nunito text-sm text-white/60">Score {TRAIN_THRESHOLD}/{TRAIN_COUNT} to unlock the test!</p>}
+          </div>
+          <div className="flex flex-col gap-3">
+            <button onClick={startTrain} className="px-6 py-2.5 rounded-xl fredoka font-bold text-white hover:scale-105 transition-all" style={{background:"linear-gradient(135deg,#4338ca,#6366f1)"}}>Play Again 🔄</button>
+            <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-200 hover:text-white hover:bg-white/10 transition-all border border-indigo-300/30">← Back to FrameShift</a>
+          </div>
+        </div></div>);}
+
+      if(!trial)return null;
+
+      // TRAIN: what's HERE / what's THERE
+      if(trial.type==="train_here"||trial.type==="train_there"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Training — Learn the Locations</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#6366f1,#818cf8)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="flex justify-center gap-4 mb-4">
+              <LocationBox loc={trial.pair.here} tag="HERE" compact/>
+              <LocationBox loc={trial.pair.there} tag="THERE" compact/>
+            </div>
+            <h2 className="fredoka text-lg text-white text-center mb-4">{trial.prompt}</h2>
+            <div className="flex justify-center gap-3">
+              {trial.options.map((o,i)=>(<button key={i} onClick={()=>pick(i)} disabled={!!feedback} className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer card-shadow ${hl[i]==="correct"?"ring-4 ring-green-400 bg-green-50 anim-pop":""} ${hl[i]==="incorrect"?"ring-4 ring-red-300 bg-red-50 anim-wiggle":""} ${!hl[i]?"glass-bright hover:scale-105":"glass-bright"}`} style={{minWidth:85,minHeight:80}}><span style={{fontSize:28}}>{o.emoji}</span><span className="nunito text-xs font-bold text-gray-700 mt-1">{o.label}</span></button>))}
+            </div>
+            {feedback&&<p className={`nunito text-sm text-center mt-4 anim-fadein ${feedback.correct?"text-green-300":"text-amber-300"}`}>{feedback.correct?"✅ That's right!":"Not quite — "+trial.fb}</p>}
+          </div>
+        </div>);
+      }
+
+      // TEST REVERSAL: swap and predict
+      if(trial.type==="test_rev"){
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Swap!</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#a5b4fc,#6366f1)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <div className="flex justify-center items-center gap-3 mb-3">
+              <LocationBox loc={trial.pair.here} tag="HERE" compact/>
+              <span className="swap-arrow">⇄</span>
+              <LocationBox loc={trial.pair.there} tag="THERE" compact/>
+            </div>
+            <div className="glass rounded-xl p-3 mb-4"><p className="nunito text-sm text-yellow-300 text-center font-bold">🔄 SWAP! {trial.pair.here.name} and {trial.pair.there.name} switched places!</p></div>
+            <h2 className="fredoka text-lg text-white text-center mb-4">What would be <span className="here-tag">HERE</span> now?</h2>
+            <div className="flex justify-center gap-3">
+              {trial.options.map((o,i)=>(<button key={i} onClick={()=>pick(i)} disabled={!!feedback} className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all cursor-pointer card-shadow ${hl[i]==="neutral"?"ring-4 ring-indigo-400 bg-indigo-50":""} ${!hl[i]?"glass-bright hover:scale-105":"glass-bright"}`} style={{minWidth:85,minHeight:80}}><span style={{fontSize:28}}>{o.emoji}</span><span className="nunito text-xs font-bold text-gray-700 mt-1">{o.label}</span></button>))}
+            </div>
+            {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+        </div>);
+      }
+
+      // TEST Y-Z: choose preferred location, then predict swap verbally
+      if(trial.type==="test_yz"){
+        if(yzStep===0){
+          return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+            <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Where Would You Rather Be?</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#a5b4fc,#6366f1)"}}></div></div></div>
+            <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+              <h2 className="fredoka text-lg text-white text-center mb-4">You are HERE. Where would you rather be?</h2>
+              <div className="flex justify-center gap-4">
+                <div onClick={()=>{setChosen("here");setYzStep(1);}} className="cursor-pointer hover:scale-105 transition-all"><LocationBox loc={trial.pair.here} tag="HERE"/></div>
+                <div onClick={()=>{setChosen("there");setYzStep(1);}} className="cursor-pointer hover:scale-105 transition-all"><LocationBox loc={trial.pair.there} tag="THERE"/></div>
+              </div>
+            </div>
+          </div>);
+        }
+        // Step 1: predict what's HERE if swapped
+        const preferred=chosen==="there"?trial.pair.there:trial.pair.here;
+        const other=chosen==="there"?trial.pair.here:trial.pair.there;
+        return(<div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md mb-4"><div className="flex justify-between mb-1"><span className="nunito text-xs text-white/60 font-bold">Test — Imagine the Swap!</span><span className="nunito text-xs text-white/60 font-bold">{trialIdx+1}/{trials.length}</span></div><div className="w-full h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{width:(trialIdx/trials.length*100)+"%",background:"linear-gradient(90deg,#a5b4fc,#6366f1)"}}></div></div></div>
+          <div className="glass rounded-3xl p-6 max-w-lg w-full card-shadow anim-fadein">
+            <p className="nunito text-sm text-indigo-200 text-center mb-2">You chose: {preferred.name} {preferred.emoji}</p>
+            <div className="glass rounded-xl p-3 mb-4"><p className="nunito text-sm text-yellow-300 text-center font-bold">🔄 If HERE were {preferred.name} and {preferred.name} were HERE...</p></div>
+            {!feedback&&(
+              <div className="caregiver-panel rounded-xl p-4">
+                <p className="nunito text-sm text-yellow-100 font-bold mb-2">🧑‍🏫 Ask: "What would be HERE now? What would be THERE?"</p>
+                <p className="nunito text-xs text-yellow-100/70 mb-2">HERE would have: {preferred.objects.map(o=>o.label).join(", ")}</p>
+                <p className="nunito text-xs text-yellow-100/70 mb-2">THERE would have: {other.objects.map(o=>o.label).join(", ")}</p>
+                <input type="text" placeholder="What did they say? (optional)" value={response} onChange={e=>setResponse(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm mb-3 border border-yellow-300/30 bg-white/10 text-white placeholder-white/40 nunito"/>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={()=>handleCaregiver("correct")} className="px-4 py-2 rounded-lg bg-green-500 text-white nunito text-sm font-bold">✅ Got Both</button>
+                  <button onClick={()=>handleCaregiver("partial")} className="px-4 py-2 rounded-lg bg-yellow-500 text-white nunito text-sm font-bold">🟡 Got One</button>
+                  <button onClick={()=>handleCaregiver("incorrect")} className="px-4 py-2 rounded-lg bg-red-500 text-white nunito text-sm font-bold">❌ Couldn't</button>
+                </div>
+              </div>
+            )}
+            {feedback&&<p className="nunito text-sm text-white/60 text-center mt-3 anim-fadein">Response recorded</p>}
+          </div>
+        </div>);
+      }
+      return null;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
