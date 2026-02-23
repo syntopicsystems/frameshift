@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Comes Next? — RFT Program 10</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes slideIn { 0%{transform:translateX(30px);opacity:0} 100%{transform:translateX(0);opacity:1} }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes conveyorMove { 0%{transform:translateX(0)} 100%{transform:translateX(-8px)} }
+    @keyframes slotIn { 0%{transform:scale(0.5) translateY(20px);opacity:0} 50%{transform:scale(1.1) translateY(-4px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
+    @keyframes bounce { 0%{transform:translateY(0)} 30%{transform:translateY(-12px)} 50%{transform:translateY(0)} 70%{transform:translateY(-6px)} 100%{transform:translateY(0)} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-slidein { animation: slideIn 0.3s ease-out; }
+    .anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
+    .anim-slotin { animation: slotIn 0.4s ease-out; }
+    .anim-bounce { animation: bounce 0.5s ease-in-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .workshop {
+      background: linear-gradient(180deg, #F0F9FF 0%, #DBEAFE 40%, #BFDBFE 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06); }
+    .conveyor-belt {
+      background: repeating-linear-gradient(90deg, #64748B 0px, #64748B 20px, #475569 20px, #475569 40px);
+      border-radius: 8px;
+    }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRAIN_TRIALS = 8;
+    const TEST_TRIALS = 8;
+    const MASTERY_THRESHOLD = 6;
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    // ── COLORS ──────────────────────────────────────────────
+    const COLORS = {
+      red:    { label: "Red",    hex: "#EF4444", bg: "#FEE2E2" },
+      blue:   { label: "Blue",   hex: "#3B82F6", bg: "#DBEAFE" },
+      green:  { label: "Green",  hex: "#22C55E", bg: "#DCFCE7" },
+      yellow: { label: "Yellow", hex: "#EAB308", bg: "#FEF9C3" },
+      purple: { label: "Purple", hex: "#A855F7", bg: "#F3E8FF" },
+      orange: { label: "Orange", hex: "#F97316", bg: "#FFEDD5" },
+    };
+
+    // ── ITEM SHAPES ─────────────────────────────────────────
+    // Simple SVG shapes that can take any color
+    const ShapeItem = ({ shape, color, size = 56, glow = false }) => {
+      const c = COLORS[color]?.hex || "#888";
+      const glowStyle = glow ? { filter: `drop-shadow(0 0 6px ${c})` } : {};
+      return (
+        <svg width={size} height={size} viewBox="0 0 56 56" style={glowStyle}>
+          {shape === "circle" && <circle cx="28" cy="28" r="22" fill={c} stroke={c} strokeWidth="2" opacity="0.9"/>}
+          {shape === "square" && <rect x="6" y="6" width="44" height="44" rx="4" fill={c} stroke={c} strokeWidth="2" opacity="0.9"/>}
+          {shape === "triangle" && <polygon points="28,4 52,48 4,48" fill={c} stroke={c} strokeWidth="2" opacity="0.9"/>}
+          {shape === "star" && <polygon points="28,2 34,20 52,20 38,32 42,50 28,40 14,50 18,32 4,20 22,20" fill={c} stroke={c} strokeWidth="2" opacity="0.9"/>}
+          {shape === "diamond" && <polygon points="28,2 52,28 28,54 4,28" fill={c} stroke={c} strokeWidth="2" opacity="0.9"/>}
+          {shape === "heart" && <path d="M28 48 C14 36 2 26 2 16 C2 8 8 2 16 2 C22 2 26 6 28 10 C30 6 34 2 40 2 C48 2 54 8 54 16 C54 26 42 36 28 48Z" fill={c} stroke={c} strokeWidth="1" opacity="0.9"/>}
+        </svg>
+      );
+    };
+
+    // Emoji-based items (for Tier 2+ where shape varies)
+    const EMOJI_ITEMS = {
+      flower: "1F33A", tree: "1F332", sun: "2600",
+      fish: "1F41F", bird: "1F426", dog: "1F436",
+      car: "1F697", house: "1F3E0", boat: "26F5",
+    };
+
+    // ── PATTERN DEFINITIONS ─────────────────────────────────
+    // Each pattern: sequence items, correct next, distractors with error types
+    const buildTier1Patterns = () => {
+      // Color cycling with same shape
+      return [
+        {
+          sequence: [
+            { shape: "circle", color: "red" },
+            { shape: "circle", color: "blue" },
+            { shape: "circle", color: "green" },
+          ],
+          correct: { shape: "circle", color: "red", label: "Red Circle" },
+          distractors: [
+            { shape: "circle", color: "green", label: "Green Circle", errorType: "repetition" },
+            { shape: "square", color: "red",   label: "Red Square",   errorType: "wrong_dimension" },
+            { shape: "triangle", color: "purple", label: "Purple Triangle", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color cycles: red → blue → green → red",
+        },
+        {
+          sequence: [
+            { shape: "star", color: "yellow" },
+            { shape: "star", color: "purple" },
+            { shape: "star", color: "yellow" },
+          ],
+          correct: { shape: "star", color: "purple", label: "Purple Star" },
+          distractors: [
+            { shape: "star", color: "yellow", label: "Yellow Star", errorType: "repetition" },
+            { shape: "diamond", color: "purple", label: "Purple Diamond", errorType: "wrong_dimension" },
+            { shape: "heart", color: "orange", label: "Orange Heart", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color alternates: yellow ↔ purple",
+        },
+        {
+          sequence: [
+            { shape: "square", color: "blue" },
+            { shape: "square", color: "orange" },
+            { shape: "square", color: "blue" },
+          ],
+          correct: { shape: "square", color: "orange", label: "Orange Square" },
+          distractors: [
+            { shape: "square", color: "blue", label: "Blue Square", errorType: "repetition" },
+            { shape: "circle", color: "orange", label: "Orange Circle", errorType: "wrong_dimension" },
+            { shape: "star", color: "green", label: "Green Star", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color alternates: blue ↔ orange",
+        },
+        {
+          sequence: [
+            { shape: "heart", color: "red" },
+            { shape: "heart", color: "green" },
+            { shape: "heart", color: "blue" },
+          ],
+          correct: { shape: "heart", color: "red", label: "Red Heart" },
+          distractors: [
+            { shape: "heart", color: "blue", label: "Blue Heart", errorType: "repetition" },
+            { shape: "diamond", color: "red", label: "Red Diamond", errorType: "wrong_dimension" },
+            { shape: "square", color: "yellow", label: "Yellow Square", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color cycles: red → green → blue → red",
+        },
+        {
+          sequence: [
+            { shape: "diamond", color: "purple" },
+            { shape: "diamond", color: "yellow" },
+            { shape: "diamond", color: "purple" },
+          ],
+          correct: { shape: "diamond", color: "yellow", label: "Yellow Diamond" },
+          distractors: [
+            { shape: "diamond", color: "purple", label: "Purple Diamond", errorType: "repetition" },
+            { shape: "star", color: "yellow", label: "Yellow Star", errorType: "wrong_dimension" },
+            { shape: "circle", color: "red", label: "Red Circle", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color alternates: purple ↔ yellow",
+        },
+        {
+          sequence: [
+            { shape: "triangle", color: "green" },
+            { shape: "triangle", color: "red" },
+            { shape: "triangle", color: "green" },
+          ],
+          correct: { shape: "triangle", color: "red", label: "Red Triangle" },
+          distractors: [
+            { shape: "triangle", color: "green", label: "Green Triangle", errorType: "repetition" },
+            { shape: "heart", color: "red", label: "Red Heart", errorType: "wrong_dimension" },
+            { shape: "star", color: "blue", label: "Blue Star", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color alternates: green ↔ red",
+        },
+        {
+          sequence: [
+            { shape: "circle", color: "orange" },
+            { shape: "circle", color: "blue" },
+            { shape: "circle", color: "purple" },
+          ],
+          correct: { shape: "circle", color: "orange", label: "Orange Circle" },
+          distractors: [
+            { shape: "circle", color: "purple", label: "Purple Circle", errorType: "repetition" },
+            { shape: "square", color: "orange", label: "Orange Square", errorType: "wrong_dimension" },
+            { shape: "triangle", color: "green", label: "Green Triangle", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color cycles: orange → blue → purple → orange",
+        },
+        {
+          sequence: [
+            { shape: "star", color: "red" },
+            { shape: "star", color: "blue" },
+            { shape: "star", color: "red" },
+          ],
+          correct: { shape: "star", color: "blue", label: "Blue Star" },
+          distractors: [
+            { shape: "star", color: "red", label: "Red Star", errorType: "repetition" },
+            { shape: "circle", color: "blue", label: "Blue Circle", errorType: "wrong_dimension" },
+            { shape: "diamond", color: "yellow", label: "Yellow Diamond", errorType: "unrelated" },
+          ],
+          dimension: "color", rule: "Color alternates: red ↔ blue",
+        },
+      ];
+    };
+
+    // Tier 2: color alternation, shapes change each time
+    const buildTier2Patterns = () => [
+      {
+        sequence: [
+          { shape: "circle", color: "green" },
+          { shape: "square", color: "red" },
+          { shape: "triangle", color: "green" },
+          { shape: "star", color: "red" },
+        ],
+        correct: { shape: "diamond", color: "green", label: "Green Diamond" },
+        distractors: [
+          { shape: "heart", color: "red", label: "Red Heart", errorType: "repetition" },
+          { shape: "diamond", color: "red", label: "Red Diamond", errorType: "wrong_dimension" },
+          { shape: "square", color: "purple", label: "Purple Square", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates green/red, shape changes each time",
+      },
+      {
+        sequence: [
+          { shape: "star", color: "blue" },
+          { shape: "heart", color: "yellow" },
+          { shape: "diamond", color: "blue" },
+          { shape: "circle", color: "yellow" },
+        ],
+        correct: { shape: "square", color: "blue", label: "Blue Square" },
+        distractors: [
+          { shape: "triangle", color: "yellow", label: "Yellow Triangle", errorType: "repetition" },
+          { shape: "square", color: "yellow", label: "Yellow Square", errorType: "wrong_dimension" },
+          { shape: "heart", color: "green", label: "Green Heart", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates blue/yellow, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "square", color: "purple" },
+          { shape: "triangle", color: "orange" },
+          { shape: "heart", color: "purple" },
+        ],
+        correct: { shape: "circle", color: "orange", label: "Orange Circle" },
+        distractors: [
+          { shape: "star", color: "purple", label: "Purple Star", errorType: "repetition" },
+          { shape: "circle", color: "purple", label: "Purple Circle", errorType: "wrong_dimension" },
+          { shape: "diamond", color: "blue", label: "Blue Diamond", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates purple/orange, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "diamond", color: "red" },
+          { shape: "circle", color: "blue" },
+          { shape: "star", color: "green" },
+          { shape: "heart", color: "red" },
+        ],
+        correct: { shape: "triangle", color: "blue", label: "Blue Triangle" },
+        distractors: [
+          { shape: "square", color: "red", label: "Red Square", errorType: "repetition" },
+          { shape: "triangle", color: "red", label: "Red Triangle", errorType: "wrong_dimension" },
+          { shape: "star", color: "yellow", label: "Yellow Star", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color cycles red/blue/green, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "heart", color: "orange" },
+          { shape: "square", color: "green" },
+          { shape: "circle", color: "orange" },
+        ],
+        correct: { shape: "triangle", color: "green", label: "Green Triangle" },
+        distractors: [
+          { shape: "diamond", color: "orange", label: "Orange Diamond", errorType: "repetition" },
+          { shape: "triangle", color: "orange", label: "Orange Triangle", errorType: "wrong_dimension" },
+          { shape: "star", color: "purple", label: "Purple Star", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates orange/green, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "triangle", color: "yellow" },
+          { shape: "diamond", color: "purple" },
+          { shape: "star", color: "yellow" },
+          { shape: "circle", color: "purple" },
+        ],
+        correct: { shape: "heart", color: "yellow", label: "Yellow Heart" },
+        distractors: [
+          { shape: "square", color: "purple", label: "Purple Square", errorType: "repetition" },
+          { shape: "heart", color: "purple", label: "Purple Heart", errorType: "wrong_dimension" },
+          { shape: "diamond", color: "red", label: "Red Diamond", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates yellow/purple, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "circle", color: "red" },
+          { shape: "star", color: "green" },
+          { shape: "square", color: "blue" },
+        ],
+        correct: { shape: "triangle", color: "red", label: "Red Triangle" },
+        distractors: [
+          { shape: "diamond", color: "blue", label: "Blue Diamond", errorType: "repetition" },
+          { shape: "triangle", color: "blue", label: "Blue Triangle", errorType: "wrong_dimension" },
+          { shape: "heart", color: "yellow", label: "Yellow Heart", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color cycles red/green/blue, shape changes",
+      },
+      {
+        sequence: [
+          { shape: "star", color: "orange" },
+          { shape: "heart", color: "blue" },
+          { shape: "diamond", color: "orange" },
+        ],
+        correct: { shape: "triangle", color: "blue", label: "Blue Triangle" },
+        distractors: [
+          { shape: "circle", color: "orange", label: "Orange Circle", errorType: "repetition" },
+          { shape: "triangle", color: "orange", label: "Orange Triangle", errorType: "wrong_dimension" },
+          { shape: "square", color: "green", label: "Green Square", errorType: "unrelated" },
+        ],
+        dimension: "color", rule: "Color alternates orange/blue, shape changes",
+      },
+    ];
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // Satisfying "click into place"
+        [440, 554, 659].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0.2, now + i * 0.06);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.06 + 0.2);
+          o.start(now + i * 0.06); o.stop(now + i * 0.06 + 0.25);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // Bounce back
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(300, now);
+        o.frequency.linearRampToValueAtTime(220, now + 0.2);
+        g.gain.setValueAtTime(0.12, now);
+        g.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playNeutral = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 440; o.type = "sine";
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        o.start(now); o.stop(now + 0.25);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.16, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playWrong, playNeutral, playComplete };
+    };
+
+    // ── CONVEYOR ITEM ───────────────────────────────────────
+    const ConveyorItem = ({ item, index, glow = false }) => (
+      <div className={`flex flex-col items-center gap-0.5 anim-slidein ${glow ? "anim-pulse" : ""}`}
+        style={{ animationDelay: `${index * 0.1}s` }}>
+        <ShapeItem shape={item.shape} color={item.color} size={50} glow={glow} />
+      </div>
+    );
+
+    // ── CHOICE BUTTON ───────────────────────────────────────
+    const ChoiceButton = ({ item, index, selected, feedback, isCorrect, disabled, onClick, slotted }) => {
+      let border = "border-slate-200"; let bg = "bg-white"; let anim = "";
+      if (slotted) { anim = "anim-slotin"; border = "border-green-400"; bg = "bg-green-50"; }
+      else if (selected && feedback === "wrong") { anim = "anim-bounce"; border = "border-red-300"; bg = "bg-red-50"; }
+      else if (!selected && feedback && isCorrect) { border = "border-green-300"; bg = "bg-green-50"; }
+      else if (selected && !feedback) { border = "border-blue-400"; bg = "bg-blue-50"; }
+
+      return (
+        <button onClick={() => onClick(index)} disabled={disabled}
+          className={`rounded-2xl border-3 ${border} ${bg} card-shadow p-3
+            transition-all duration-200 ${!disabled ? "hover:scale-105 cursor-pointer" : "cursor-default"}
+            flex flex-col items-center gap-1 min-w-[80px]`}
+          style={{ borderWidth: 3 }}>
+          <div className={anim} onAnimationEnd={e => e.currentTarget.className = ""}>
+            <ShapeItem shape={item.shape} color={item.color} size={44} />
+          </div>
+          <span className="nunito text-xs text-slate-600 font-semibold">{item.label}</span>
+        </button>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const WhatComesNext = () => {
+      const [phase, setPhase] = useState("train");
+      const [patterns, setPatterns] = useState([]);
+      const [patternIndex, setPatternIndex] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ train: null, test: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const [showScaffold, setShowScaffold] = useState(false); // "Look at the COLORS" hint
+      const [slotted, setSlotted] = useState(false);
+      const [scaffoldLevel, setScaffoldLevel] = useState(3); // decreases with correct answers
+      const [options, setOptions] = useState([]);
+      const { playCorrect, playWrong, playNeutral, playComplete } = useSound();
+
+      const buildOptions = (pattern) => {
+        const all = [
+          { ...pattern.correct, isCorrect: true, errorType: null },
+          ...pattern.distractors.map(d => ({ ...d, isCorrect: false })),
+        ];
+        // Shuffle
+        for (let i = all.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [all[i], all[j]] = [all[j], all[i]];
+        }
+        return all;
+      };
+
+      useEffect(() => {
+        const tier1 = buildTier1Patterns();
+        for (let i = tier1.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [tier1[i], tier1[j]] = [tier1[j], tier1[i]];
+        }
+        const selected = tier1.slice(0, TRAIN_TRIALS);
+        setPatterns(selected);
+        if (selected.length > 0) setOptions(buildOptions(selected[0]));
+      }, []);
+
+      const pattern = patterns[patternIndex];
+
+      const handleSelect = (index) => {
+        if (feedback !== null) return;
+        setSelected(index);
+      };
+
+      const handleSubmit = () => {
+        if (selected === null || feedback !== null) return;
+        const opt = options[selected];
+        const isCorrect = opt.isCorrect;
+        const isTest = phase === "test";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTest ? "TEST" : "TRAIN",
+          dimension: pattern.dimension,
+          rule: pattern.rule,
+          sequence_length: pattern.sequence.length,
+          selected_item: opt.label,
+          correct_item: pattern.correct.label,
+          is_correct: isCorrect,
+          error_type: isCorrect ? null : opt.errorType,
+          scaffold_level: isTest ? 0 : scaffoldLevel,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isTest) {
+          playNeutral();
+          setScore(s => s + (isCorrect ? 1 : 0));
+          setFeedback("recorded");
+        } else if (isCorrect) {
+          playCorrect();
+          setScore(s => s + 1);
+          setSlotted(true);
+          setFeedback("correct");
+          setScaffoldLevel(l => Math.max(0, l - 1));
+        } else {
+          playWrong();
+          setFeedback("wrong");
+          // Show scaffold hint on error
+          if (scaffoldLevel > 0) setShowScaffold(true);
+        }
+      };
+
+      const handleNext = () => {
+        if (patternIndex + 1 >= patterns.length) {
+          setPhaseScores(prev => ({ ...prev, [phase]: score }));
+          if (phase === "train" && score >= MASTERY_THRESHOLD) {
+            const tier2 = buildTier2Patterns();
+            for (let i = tier2.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [tier2[i], tier2[j]] = [tier2[j], tier2[i]];
+            }
+            const testPatterns = tier2.slice(0, TEST_TRIALS);
+            setPhase("test"); setPatterns(testPatterns);
+            setPatternIndex(0); setSelected(null); setFeedback(null);
+            setScore(0); setSlotted(false); setShowScaffold(false);
+            if (testPatterns.length > 0) setOptions(buildOptions(testPatterns[0]));
+            return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              var _train = phase === "train" ? score : (phaseScores.train !== null ? phaseScores.train : (score || 0));
+              var _test = phase === "test" ? score : (phaseScores.test !== null ? phaseScores.test : null);
+              var _mastery = phase === "test" || phaseScores.test !== null;
+              window.FrameShift.saveSession("p10", _train, 8, _test, 8, _mastery);
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        const nextIdx = patternIndex + 1;
+        setPatternIndex(nextIdx);
+        setSelected(null); setFeedback(null);
+        setSlotted(false); setShowScaffold(false);
+        setOptions(buildOptions(patterns[nextIdx]));
+      };
+
+      const handleRestart = () => {
+        const tier1 = buildTier1Patterns();
+        for (let i = tier1.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [tier1[i], tier1[j]] = [tier1[j], tier1[i]];
+        }
+        const selected = tier1.slice(0, TRAIN_TRIALS);
+        setPhase("train"); setPatterns(selected);
+        setPatternIndex(0); setSelected(null); setFeedback(null);
+        setScore(0); setPhaseScores({ train: null, test: null });
+        setSessionDone(false); setTrialLog([]); setSlotted(false);
+        setShowScaffold(false); setScaffoldLevel(3);
+        if (selected.length > 0) setOptions(buildOptions(selected[0]));
+      };
+
+      if (!pattern) return (
+        <div className="min-h-screen workshop flex items-center justify-center">
+          <div className="text-blue-800 text-2xl fredoka">Starting the conveyor...</div>
+        </div>
+      );
+
+      // ── SESSION COMPLETE ──────────────────────────────────
+      if (sessionDone) {
+        const allPhases = phaseScores.test !== null;
+        const errorTypes = {};
+        trialLog.filter(t => !t.is_correct && t.error_type).forEach(t => {
+          errorTypes[t.error_type] = (errorTypes[t.error_type] || 0) + 1;
+        });
+
+        return (
+          <div className="min-h-screen workshop p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-8">
+              <div className="bg-white bg-opacity-95 rounded-3xl p-8 card-shadow text-center border-2 border-blue-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "🧩" : "⚙️"}</div>
+                <h2 className="text-3xl fredoka text-blue-800 mb-4">
+                  {allPhases ? "Pattern Master!" : "Good Puzzling!"}
+                </h2>
+                <div className="space-y-3 mb-4 text-left max-w-xs mx-auto">
+                  {phaseScores.train !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-blue-700 font-semibold">Training (Tier 1)</span>
+                      <span className={`font-bold ${phaseScores.train >= MASTERY_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
+                        {phaseScores.train}/{TRAIN_TRIALS} {phaseScores.train >= MASTERY_THRESHOLD ? "✓" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {phaseScores.test !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-blue-700 font-semibold">Test (Tier 2 — novel)</span>
+                      <span className="font-bold text-purple-600">{phaseScores.test}/{TEST_TRIALS}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Error type breakdown */}
+                {Object.keys(errorTypes).length > 0 && (
+                  <div className="bg-blue-50 rounded-2xl p-3 mb-4 border border-blue-200 text-left">
+                    <span className="nunito text-sm text-blue-700 font-semibold">Error types:</span>
+                    <div className="space-y-1 mt-1">
+                      {Object.entries(errorTypes).map(([type, count]) => (
+                        <div key={type} className="flex justify-between nunito text-sm">
+                          <span className="text-blue-600 capitalize">{type.replace("_", " ")}</span>
+                          <span className="text-blue-800 font-bold">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {allPhases && phaseScores.test >= MASTERY_THRESHOLD && (
+                  <p className="text-blue-600 nunito mb-4">
+                    🎯 Inductive pattern mastery! You found patterns with changing shapes — attending to the right feature.
+                  </p>
+                )}
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-blue-400 to-blue-600 text-white hover:from-blue-300 hover:to-blue-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-blue-700">
+                  🧩 Puzzle Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN TRIAL SCREEN ─────────────────────────────────
+      const isTest = phase === "test";
+      const showGlow = !isTest && scaffoldLevel > 1 && !feedback;
+
+      return (
+        <div className="min-h-screen workshop p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-3xl sm:text-4xl fredoka text-blue-900 drop-shadow-sm mb-1">
+                🧩 What Comes Next? 🧩
+              </h1>
+              <p className="text-blue-700 nunito opacity-60 text-xs">
+                RFT Program 10 · Inductive Pattern
+              </p>
+            </div>
+
+            {/* Phase + progress */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`px-3 py-1 rounded-xl text-sm font-semibold nunito
+                ${!isTest ? "bg-blue-500 text-white" : "bg-purple-500 text-white"}`}>
+                {!isTest ? `⚙️ Training (Tier 1)` : "🧪 Test (Tier 2)"}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-xs nunito text-blue-700 mb-0.5">
+                  <span>Pattern {patternIndex + 1} of {patterns.length}</span>
+                  <span>{score} correct</span>
+                </div>
+                <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden border border-blue-200">
+                  <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-blue-400 to-indigo-400"
+                    style={{ width: `${(patternIndex / patterns.length) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Conveyor belt */}
+            <div className="mb-4 anim-slideup">
+              <div className="bg-slate-700 rounded-2xl p-4 card-shadow border-2 border-slate-600">
+                <div className="flex items-center gap-2 justify-center">
+                  {pattern.sequence.map((item, i) => (
+                    <React.Fragment key={i}>
+                      <ConveyorItem item={item} index={i} glow={showGlow} />
+                      {i < pattern.sequence.length - 1 && (
+                        <span className="text-slate-400 text-lg">→</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  <span className="text-slate-400 text-lg">→</span>
+                  {/* Empty slot / slotted answer */}
+                  <div className={`w-14 h-14 rounded-xl border-3 border-dashed flex items-center justify-center
+                    ${slotted ? "border-green-400 bg-green-900 bg-opacity-30" : "border-slate-400"}`}
+                    style={{ borderWidth: 3 }}>
+                    {slotted ? (
+                      <div className="anim-slotin">
+                        <ShapeItem shape={pattern.correct.shape} color={pattern.correct.color} size={44} />
+                      </div>
+                    ) : (
+                      <span className="text-3xl text-slate-400 fredoka">?</span>
+                    )}
+                  </div>
+                </div>
+                {/* Belt decoration */}
+                <div className="conveyor-belt h-3 mt-3 opacity-40" />
+              </div>
+            </div>
+
+            {/* Scaffold hint (training only, after error) */}
+            {showScaffold && (
+              <div className="text-center mb-3 py-2 px-4 rounded-2xl bg-sky-100 text-sky-800 border-2 border-sky-300 max-w-md mx-auto anim-slideup">
+                <span className="fredoka text-lg">
+                  👀 Look at the <strong>COLORS</strong>! What color comes next?
+                </span>
+              </div>
+            )}
+
+            {/* Prompt */}
+            <div className="text-center mb-4">
+              <span className={`inline-block px-5 py-2 rounded-2xl fredoka text-lg font-bold card-shadow
+                ${isTest
+                  ? "bg-purple-100 text-purple-800 border-2 border-purple-200"
+                  : "bg-blue-100 text-blue-800 border-2 border-blue-200"}`}>
+                {isTest ? "🧪" : "🧩"} What comes next?
+              </span>
+              {isTest && <p className="text-xs text-purple-600 nunito mt-1 opacity-70">Test — no hints</p>}
+            </div>
+
+            {/* Choice array */}
+            <div className="flex gap-3 sm:gap-4 justify-center flex-wrap mb-4">
+              {options.map((opt, idx) => (
+                <ChoiceButton key={idx} item={opt} index={idx}
+                  selected={selected === idx}
+                  feedback={isTest ? null : feedback}
+                  isCorrect={opt.isCorrect}
+                  disabled={feedback !== null}
+                  onClick={handleSelect}
+                  slotted={slotted && opt.isCorrect}
+                />
+              ))}
+            </div>
+
+            {/* Feedback */}
+            {feedback && !isTest && (
+              <div className={`text-center mb-4 py-2 px-4 rounded-2xl nunito font-bold mx-auto max-w-md anim-slideup
+                ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                {feedback === "correct"
+                  ? ["Click! Perfect fit! 🧩", "You found the pattern! ✨", "That's it! 🎯"][Math.floor(Math.random()*3)]
+                  : `Not quite — ${pattern.correct.label} continues the pattern. ${pattern.rule}`}
+              </div>
+            )}
+            {feedback && isTest && (
+              <div className="text-center mb-4 py-2 px-4 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                Response recorded. 🧩
+              </div>
+            )}
+
+            {/* Action */}
+            <div className="flex justify-center">
+              {!feedback ? (
+                <button onClick={handleSubmit} disabled={selected === null}
+                  className={`px-6 py-3 rounded-2xl font-bold text-lg transition-all fredoka
+                    ${selected === null
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-b from-blue-400 to-blue-600 text-white hover:from-blue-300 hover:to-blue-500 shadow-lg hover:scale-105 border-2 border-blue-700"}`}>
+                  🧩 Place It!
+                </button>
+              ) : (
+                <button onClick={handleNext}
+                  className="px-6 py-3 rounded-2xl font-bold text-lg bg-gradient-to-b from-indigo-400 to-indigo-600 text-white hover:from-indigo-300 hover:to-indigo-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-indigo-700">
+                  {patternIndex + 1 < patterns.length ? "🧩 Next Pattern →" : "✨ Finish"}
+                </button>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center mt-6 text-blue-700 opacity-30 text-xs nunito">
+              RFT Program 10 · What Comes Next? · Syntopic Systems
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<WhatComesNext />);
+  </script>
+</body>
+</html>

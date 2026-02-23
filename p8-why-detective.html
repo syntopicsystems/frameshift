@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Why Detective — RFT Program 8</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes bubbleIn { 0%{transform:scale(0);opacity:0} 60%{transform:scale(1.1);opacity:1} 100%{transform:scale(1);opacity:1} }
+    @keyframes magnify { 0%,100%{transform:rotate(-5deg) scale(1)} 50%{transform:rotate(5deg) scale(1.1)} }
+    @keyframes taskDone { 0%{transform:scale(1)} 30%{transform:scale(1.2)} 50%{transform:scale(0.95)} 100%{transform:scale(1)} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-bubble { animation: bubbleIn 0.4s ease-out; }
+    .anim-magnify { animation: magnify 2s ease-in-out infinite; }
+    .anim-taskdone { animation: taskDone 0.5s ease-in-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .detective {
+      background: linear-gradient(180deg, #DBEAFE 0%, #BFDBFE 40%, #93C5FD 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06); }
+    .speech-bubble {
+      position: relative;
+      background: white;
+      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.1);
+    }
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 8px solid white;
+    }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRAIN_TRIALS = 8;
+    const TEST_TRIALS = 8;
+    const MASTERY_THRESHOLD = 6;
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    // ── CHARACTERS ──────────────────────────────────────────
+    const CHARACTERS = {
+      teacher:  { name: "Ms. Lee",   emoji: "1F469-200D-1F3EB", role: "teacher" },
+      boy1:     { name: "Marcus",    emoji: "1F466-1F3FD",       role: "student" },
+      girl1:    { name: "Anika",     emoji: "1F467-1F3FB",       role: "student" },
+      boy2:     { name: "James",     emoji: "1F466-1F3FC",       role: "student" },
+      girl2:    { name: "Sofia",     emoji: "1F467-1F3FE",       role: "student" },
+      grandpa:  { name: "Grandpa",   emoji: "1F474-1F3FB",       role: "family" },
+      mom:      { name: "Mom",       emoji: "1F469-1F3FD",       role: "family" },
+      dog:      { name: "Buddy",     emoji: "1F436",             role: "pet" },
+    };
+
+    // ── SCENARIO BANK ───────────────────────────────────────
+    // Enhanced version: each scenario has multiple characters with different REASONS
+    // The "why" question reveals the reason that disambiguates the correct action
+    const SCENARIOS = {
+      train: [
+        {
+          instruction: "Give the crayon to the person who needs it.",
+          characters: ["teacher", "boy1", "girl1"],
+          reasons: {
+            teacher: "Ms. Lee is drawing a picture and her crayon just broke!",
+            boy1: "Marcus is reading a book quietly.",
+            girl1: "Anika is playing with blocks.",
+          },
+          correctCharacter: "teacher",
+          taskAnimation: "gives crayon",
+          whyQuestion: "Why does someone need a crayon?",
+        },
+        {
+          instruction: "Wave to the person who just arrived.",
+          characters: ["girl2", "boy2", "girl1"],
+          reasons: {
+            girl2: "Sofia has been here all morning working on a puzzle.",
+            boy2: "James just walked in the door with his backpack!",
+            girl1: "Anika is eating her snack at the table.",
+          },
+          correctCharacter: "boy2",
+          taskAnimation: "waves hello",
+          whyQuestion: "Why should you wave at someone?",
+        },
+        {
+          instruction: "High five the one who won the game.",
+          characters: ["boy1", "girl2", "boy2"],
+          reasons: {
+            boy1: "Marcus just scored the winning goal at recess!",
+            girl2: "Sofia is setting up the next game.",
+            boy2: "James is getting a drink of water.",
+          },
+          correctCharacter: "boy1",
+          taskAnimation: "gives high five",
+          whyQuestion: "Why would someone deserve a high five?",
+        },
+        {
+          instruction: "Give the tissue to whoever needs one.",
+          characters: ["girl1", "boy1", "teacher"],
+          reasons: {
+            girl1: "Anika just sneezed three times and her nose is running!",
+            boy1: "Marcus is drawing happily.",
+            teacher: "Ms. Lee is writing on the board.",
+          },
+          correctCharacter: "girl1",
+          taskAnimation: "gives tissue",
+          whyQuestion: "Why would someone need a tissue?",
+        },
+        {
+          instruction: "Help the person who dropped their things.",
+          characters: ["boy2", "girl2", "girl1"],
+          reasons: {
+            boy2: "James's backpack tipped over and everything spilled on the floor!",
+            girl2: "Sofia is reading at her desk.",
+            girl1: "Anika is putting on her coat.",
+          },
+          correctCharacter: "boy2",
+          taskAnimation: "helps pick up",
+          whyQuestion: "Why does someone need help?",
+        },
+        {
+          instruction: "Share your snack with whoever is hungry.",
+          characters: ["teacher", "boy1", "girl2"],
+          reasons: {
+            teacher: "Ms. Lee just had her lunch.",
+            boy1: "Marcus forgot his lunch at home and his tummy is growling!",
+            girl2: "Sofia is finishing her sandwich.",
+          },
+          correctCharacter: "boy1",
+          taskAnimation: "shares snack",
+          whyQuestion: "Why is someone hungry?",
+        },
+        {
+          instruction: "Read the story to whoever wants to hear it.",
+          characters: ["girl1", "boy2", "girl2"],
+          reasons: {
+            girl1: "Anika is doing math problems.",
+            boy2: "James asked, 'Can someone read me a story?' and is sitting with a book!",
+            girl2: "Sofia is building with clay.",
+          },
+          correctCharacter: "boy2",
+          taskAnimation: "reads story",
+          whyQuestion: "Why does someone want a story?",
+        },
+        {
+          instruction: "Give the bandage to whoever got hurt.",
+          characters: ["boy1", "girl1", "girl2"],
+          reasons: {
+            boy1: "Marcus is running around the playground.",
+            girl1: "Anika scraped her knee and it's bleeding a little!",
+            girl2: "Sofia is swinging on the swings.",
+          },
+          correctCharacter: "girl1",
+          taskAnimation: "gives bandage",
+          whyQuestion: "Why does someone need a bandage?",
+        },
+      ],
+      test: [
+        {
+          instruction: "High five the person who helped clean up.",
+          characters: ["girl2", "boy1", "boy2"],
+          reasons: {
+            girl2: "Sofia stayed after class and picked up all the toys!",
+            boy1: "Marcus is getting ready to go home.",
+            boy2: "James is tying his shoes.",
+          },
+          correctCharacter: "girl2",
+          taskAnimation: "gives high five",
+          whyQuestion: "Why did someone help?",
+        },
+        {
+          instruction: "Give the glue to whoever is building something.",
+          characters: ["teacher", "girl1", "boy2"],
+          reasons: {
+            teacher: "Ms. Lee is grading papers.",
+            girl1: "Anika is making a cardboard castle and needs to stick the pieces together!",
+            boy2: "James is coloring a picture.",
+          },
+          correctCharacter: "girl1",
+          taskAnimation: "gives glue",
+          whyQuestion: "Why does someone need glue?",
+        },
+        {
+          instruction: "Shake hands with the one who said hello.",
+          characters: ["boy1", "girl2", "grandpa"],
+          reasons: {
+            boy1: "Marcus is looking at his phone.",
+            girl2: "Sofia is whispering to a friend.",
+            grandpa: "Grandpa just walked up and said, 'Well hello there, nice to meet you!'",
+          },
+          correctCharacter: "grandpa",
+          taskAnimation: "shakes hands",
+          whyQuestion: "Why did someone say hello?",
+        },
+        {
+          instruction: "Bring water to whoever is thirsty.",
+          characters: ["girl1", "boy2", "girl2"],
+          reasons: {
+            girl1: "Anika is painting quietly.",
+            boy2: "James just finished running laps and is breathing hard, asking for water!",
+            girl2: "Sofia is reading a book.",
+          },
+          correctCharacter: "boy2",
+          taskAnimation: "brings water",
+          whyQuestion: "Why is someone thirsty?",
+        },
+        {
+          instruction: "Give the umbrella to whoever needs to stay dry.",
+          characters: ["mom", "boy1", "girl2"],
+          reasons: {
+            mom: "Mom is already inside the car.",
+            boy1: "Marcus has his own raincoat on.",
+            girl2: "Sofia is standing in the rain without a jacket and getting soaked!",
+          },
+          correctCharacter: "girl2",
+          taskAnimation: "gives umbrella",
+          whyQuestion: "Why does someone need an umbrella?",
+        },
+        {
+          instruction: "Sit next to the person who looks lonely.",
+          characters: ["boy2", "girl1", "boy1"],
+          reasons: {
+            boy2: "James is laughing with a group of friends.",
+            girl1: "Anika is sitting by herself at the far table, looking sad.",
+            boy1: "Marcus is playing a board game with two others.",
+          },
+          correctCharacter: "girl1",
+          taskAnimation: "sits next to",
+          whyQuestion: "Why might someone be lonely?",
+        },
+        {
+          instruction: "Thank the person who made you a gift.",
+          characters: ["girl2", "grandpa", "boy1"],
+          reasons: {
+            girl2: "Sofia is doing her homework.",
+            grandpa: "Grandpa spent all afternoon making you a wooden toy truck!",
+            boy1: "Marcus is watching TV.",
+          },
+          correctCharacter: "grandpa",
+          taskAnimation: "says thank you",
+          whyQuestion: "Why did someone make a gift?",
+        },
+        {
+          instruction: "Cheer for the person who's trying something new.",
+          characters: ["boy1", "girl2", "girl1"],
+          reasons: {
+            boy1: "Marcus is doing something he does every day.",
+            girl2: "Sofia is nervously about to try the monkey bars for the very first time!",
+            girl1: "Anika is eating lunch.",
+          },
+          correctCharacter: "girl2",
+          taskAnimation: "cheers",
+          whyQuestion: "Why is someone trying something new?",
+        },
+      ],
+    };
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 659, 784].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0.18, now + i * 0.08);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.25);
+          o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.3);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(280, now);
+        o.frequency.linearRampToValueAtTime(220, now + 0.25);
+        g.gain.setValueAtTime(0.1, now); g.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playReveal = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // "Aha!" discovery sound
+        [392, 494, 587].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.15, now + i * 0.06);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.06 + 0.2);
+          o.start(now + i * 0.06); o.stop(now + i * 0.06 + 0.25);
+        });
+      };
+      const playNeutral = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 440; o.type = "sine";
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        o.start(now); o.stop(now + 0.25);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.16, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playWrong, playReveal, playNeutral, playComplete };
+    };
+
+    // ── CHARACTER CARD ──────────────────────────────────────
+    const CharacterCard = ({ charKey, char, onClick, selected, disabled, reason, showReason }) => {
+      let border = "border-blue-100"; let bg = "bg-white";
+      if (selected) { border = "border-blue-400"; bg = "bg-blue-50"; }
+
+      return (
+        <div className="flex flex-col items-center gap-1">
+          {/* Speech bubble with reason */}
+          {showReason && reason && (
+            <div className="speech-bubble max-w-[160px] mb-1 anim-bubble">
+              <p className="nunito text-xs text-gray-700 leading-snug">{reason}</p>
+            </div>
+          )}
+          <button onClick={() => onClick(charKey)} disabled={disabled}
+            className={`rounded-2xl border-3 ${border} ${bg} card-shadow p-3
+              transition-all duration-200 ${!disabled ? "hover:scale-105 cursor-pointer" : "cursor-default"}
+              flex flex-col items-center gap-1 min-w-[90px]`}
+            style={{ borderWidth: 3 }}>
+            <img src={emojiURL(char.emoji)} alt={char.name}
+              width="56" height="56" style={{ width: 56, height: 56 }} draggable={false} />
+            <span className="nunito text-sm text-gray-700 font-bold">{char.name}</span>
+          </button>
+        </div>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const WhyDetective = () => {
+      const [phase, setPhase] = useState("train");
+      const [trials, setTrials] = useState([]);
+      const [trialIndex, setTrialIndex] = useState(0);
+      const [askedWhy, setAskedWhy] = useState(false);
+      const [reasonsRevealed, setReasonsRevealed] = useState(false);
+      const [selectedChar, setSelectedChar] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [noWhyWarning, setNoWhyWarning] = useState(false);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ train: null, test: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const [taskAnimation, setTaskAnimation] = useState(false);
+      const { playCorrect, playWrong, playReveal, playNeutral, playComplete } = useSound();
+
+      useEffect(() => {
+        const shuffled = [...SCENARIOS.train];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setTrials(shuffled.slice(0, TRAIN_TRIALS));
+      }, []);
+
+      const scenario = trials[trialIndex];
+
+      const handleAskWhy = () => {
+        setAskedWhy(true);
+        setReasonsRevealed(true);
+        setNoWhyWarning(false);
+        playReveal();
+      };
+
+      const handleSelectChar = (charKey) => {
+        if (feedback !== null) return;
+
+        // In training: if they haven't asked why yet, warn them
+        if (phase === "train" && !askedWhy) {
+          setNoWhyWarning(true);
+          setSelectedChar(charKey); // remember their choice
+          return;
+        }
+
+        // In test: if they haven't asked why, let them proceed (but log it)
+        setSelectedChar(charKey);
+      };
+
+      const handleSubmit = () => {
+        if (!selectedChar || feedback !== null) return;
+
+        // If in training and still haven't asked why after warning
+        if (phase === "train" && !askedWhy) {
+          setNoWhyWarning(true);
+          return;
+        }
+
+        const isCorrect = selectedChar === scenario.correctCharacter;
+        const isTest = phase === "test";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTest ? "TEST" : "TRAIN",
+          instruction: scenario.instruction,
+          asked_why: askedWhy,
+          selected_character: CHARACTERS[selectedChar].name,
+          correct_character: CHARACTERS[scenario.correctCharacter].name,
+          is_correct: isCorrect,
+          asked_why_before_acting: askedWhy,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isTest) {
+          playNeutral();
+          setScore(s => s + (isCorrect ? 1 : 0));
+          setFeedback("recorded");
+        } else if (isCorrect) {
+          playCorrect();
+          setScore(s => s + 1);
+          setFeedback("correct");
+          setTaskAnimation(true);
+        } else {
+          playWrong();
+          setFeedback("wrong");
+        }
+      };
+
+      const handleNext = () => {
+        if (trialIndex + 1 >= trials.length) {
+          setPhaseScores(prev => ({ ...prev, [phase]: score }));
+          if (phase === "train" && score >= MASTERY_THRESHOLD) {
+            const shuffled = [...SCENARIOS.test];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setPhase("test");
+            setTrials(shuffled.slice(0, TEST_TRIALS));
+            setTrialIndex(0);
+            setAskedWhy(false); setReasonsRevealed(false);
+            setSelectedChar(null); setFeedback(null);
+            setNoWhyWarning(false); setScore(0); setTaskAnimation(false);
+            return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              var _train = phase === "train" ? score : (phaseScores.train !== null ? phaseScores.train : (score || 0));
+              var _test = phase === "test" ? score : (phaseScores.test !== null ? phaseScores.test : null);
+              var _mastery = phase === "test" || phaseScores.test !== null;
+              window.FrameShift.saveSession("p8", _train, 8, _test, 8, _mastery);
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        setTrialIndex(i => i + 1);
+        setAskedWhy(false); setReasonsRevealed(false);
+        setSelectedChar(null); setFeedback(null);
+        setNoWhyWarning(false); setTaskAnimation(false);
+      };
+
+      const handleRestart = () => {
+        const shuffled = [...SCENARIOS.train];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setPhase("train"); setTrials(shuffled.slice(0, TRAIN_TRIALS));
+        setTrialIndex(0); setAskedWhy(false); setReasonsRevealed(false);
+        setSelectedChar(null); setFeedback(null); setNoWhyWarning(false);
+        setScore(0); setPhaseScores({ train: null, test: null });
+        setSessionDone(false); setTrialLog([]); setTaskAnimation(false);
+      };
+
+      // Loading
+      if (trials.length === 0) return (
+        <div className="min-h-screen detective flex items-center justify-center">
+          <div className="text-blue-800 text-2xl fredoka">Setting up the scene...</div>
+        </div>
+      );
+
+      // Session complete
+      if (sessionDone) {
+        const allPhases = phaseScores.test !== null;
+        const whyRate = trialLog.filter(t => t.asked_why_before_acting).length / trialLog.length;
+        return (
+          <div className="min-h-screen detective p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-8">
+              <div className="bg-white bg-opacity-95 rounded-3xl p-8 card-shadow text-center border-2 border-blue-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "🕵️" : "🔍"}</div>
+                <h2 className="text-3xl fredoka text-blue-800 mb-4">
+                  {allPhases ? "Super Detective!" : "Good Investigating!"}
+                </h2>
+                <div className="space-y-3 mb-4 text-left max-w-xs mx-auto">
+                  {phaseScores.train !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-blue-700 font-semibold">Training</span>
+                      <span className={`font-bold ${phaseScores.train >= MASTERY_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
+                        {phaseScores.train}/{TRAIN_TRIALS} {phaseScores.train >= MASTERY_THRESHOLD ? "✓" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {phaseScores.test !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-blue-700 font-semibold">Test (novel scenarios)</span>
+                      <span className="font-bold text-purple-600">{phaseScores.test}/{TEST_TRIALS}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between nunito">
+                    <span className="text-blue-700 font-semibold">Asked "why" first</span>
+                    <span className="font-bold text-blue-600">{Math.round(whyRate * 100)}%</span>
+                  </div>
+                </div>
+                {allPhases && phaseScores.test >= MASTERY_THRESHOLD && (
+                  <p className="text-blue-600 nunito mb-4">
+                    🎯 Interrogative frame mastered! You asked "why" to find reasons and made the right choice.
+                  </p>
+                )}
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-blue-400 to-blue-600 text-white hover:from-blue-300 hover:to-blue-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-blue-700">
+                  🔍 Investigate Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN TRIAL SCREEN ─────────────────────────────────
+      const isTest = phase === "test";
+
+      return (
+        <div className="min-h-screen detective p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-3xl sm:text-4xl fredoka text-blue-900 drop-shadow-sm mb-1">
+                🔍 The Why Detective 🔍
+              </h1>
+              <p className="text-blue-700 nunito opacity-60 text-xs">
+                RFT Program 8 · Interrogative Frame
+              </p>
+            </div>
+
+            {/* Phase + progress */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`px-3 py-1 rounded-xl text-sm font-semibold nunito
+                ${!isTest ? "bg-blue-500 text-white" : "bg-purple-500 text-white"}`}>
+                {!isTest ? "🔍 Training" : "🧪 Test"}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-xs nunito text-blue-700 mb-0.5">
+                  <span>Scene {trialIndex + 1} of {trials.length}</span>
+                  <span>{score} correct</span>
+                </div>
+                <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden border border-blue-200">
+                  <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-blue-400 to-indigo-400"
+                    style={{ width: `${(trialIndex / trials.length) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Instruction card */}
+            <div className="bg-white bg-opacity-90 rounded-2xl px-5 py-4 card-shadow border-2 border-blue-200 mb-4 anim-slideup">
+              <div className="text-xs nunito text-blue-400 uppercase tracking-wider font-semibold mb-1">Your mission:</div>
+              <p className="fredoka text-xl text-blue-900">{scenario.instruction}</p>
+            </div>
+
+            {/* Characters */}
+            <div className="flex gap-4 sm:gap-6 justify-center items-end mb-4 flex-wrap">
+              {scenario.characters.map(charKey => {
+                const char = CHARACTERS[charKey];
+                return (
+                  <CharacterCard key={charKey}
+                    charKey={charKey} char={char}
+                    onClick={handleSelectChar}
+                    selected={selectedChar === charKey}
+                    disabled={feedback !== null}
+                    reason={scenario.reasons[charKey]}
+                    showReason={reasonsRevealed}
+                  />
+                );
+              })}
+            </div>
+
+            {/* WHY button — always visible unless reasons are showing */}
+            {!reasonsRevealed && !feedback && (
+              <div className="text-center mb-4">
+                <button onClick={handleAskWhy}
+                  className="px-6 py-3 rounded-2xl font-bold text-lg bg-gradient-to-b from-yellow-300 to-yellow-500 text-yellow-900 hover:from-yellow-200 hover:to-yellow-400 shadow-lg hover:scale-110 transition-all fredoka border-2 border-yellow-600 anim-magnify">
+                  ❓ Ask WHY
+                </button>
+                {!isTest && (
+                  <p className="text-xs nunito text-blue-600 mt-1 opacity-60">
+                    Good detectives ask "why" before they act!
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* No-why warning (training only) */}
+            {noWhyWarning && !askedWhy && (
+              <div className="text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-amber-800 bg-amber-100 border-2 border-amber-300 max-w-md mx-auto anim-slideup">
+                🤔 Hmm, how do you know? Try asking <strong>WHY</strong> first!
+              </div>
+            )}
+
+            {/* Task animation on correct */}
+            {taskAnimation && (
+              <div className="text-center mb-3 py-2 px-4 rounded-2xl bg-green-100 text-green-800 border-2 border-green-300 max-w-md mx-auto anim-taskdone">
+                <span className="fredoka text-lg">
+                  ✅ {CHARACTERS[scenario.correctCharacter].name} {scenario.taskAnimation}!
+                </span>
+              </div>
+            )}
+
+            {/* Feedback */}
+            {feedback && !isTest && !taskAnimation && (
+              <div className={`text-center mb-3 py-2 px-4 rounded-2xl nunito font-bold mx-auto max-w-md anim-slideup
+                ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                {feedback === "correct"
+                  ? "Case solved! 🕵️✨"
+                  : `Not quite — ${CHARACTERS[scenario.correctCharacter].name} was the right person because: ${scenario.reasons[scenario.correctCharacter]}`}
+              </div>
+            )}
+            {feedback && isTest && (
+              <div className="text-center mb-3 py-2 px-4 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                Response recorded. 🔍
+              </div>
+            )}
+
+            {/* Action button */}
+            <div className="flex justify-center">
+              {!feedback ? (
+                <button onClick={handleSubmit} disabled={!selectedChar}
+                  className={`px-6 py-3 rounded-2xl font-bold text-lg transition-all fredoka
+                    ${!selectedChar
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-b from-blue-400 to-blue-600 text-white hover:from-blue-300 hover:to-blue-500 shadow-lg hover:scale-105 border-2 border-blue-700"}`}>
+                  👆 Choose This Person
+                </button>
+              ) : (
+                <button onClick={handleNext}
+                  className="px-6 py-3 rounded-2xl font-bold text-lg bg-gradient-to-b from-indigo-400 to-indigo-600 text-white hover:from-indigo-300 hover:to-indigo-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-indigo-700">
+                  {trialIndex + 1 < trials.length ? "🔍 Next Case →" : "✨ Finish"}
+                </button>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center mt-6 text-blue-700 opacity-30 text-xs nunito">
+              RFT Program 8 · The Why Detective · Syntopic Systems
+              <br/>Emoji by <a href="https://openmoji.org" target="_blank" rel="noopener" className="underline">OpenMoji</a> (CC BY-SA 4.0)
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<WhyDetective />);
+  </script>
+</body>
+</html>

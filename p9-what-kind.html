@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Kind? — RFT Program 9</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes bubblePop { 0%{transform:scale(0);opacity:0} 60%{transform:scale(1.15);opacity:1} 100%{transform:scale(1);opacity:1} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-bubblepop { animation: bubblePop 0.4s ease-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .studio {
+      background: linear-gradient(180deg, #FFFBEB 0%, #FEF9C3 40%, #FEF08A 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06); }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRAIN_TRIALS = 10;
+    const TEST_TRIALS = 8;
+    const MASTERY_THRESHOLD = 8;
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    // ── STIMULUS BANK ───────────────────────────────────────
+    // Each item: emoji, name, target adjective, feature dimension, set
+    const STIMULI = {
+      train: [
+        // Size
+        { emoji: "1F415", name: "Dog",   targetAdj: "Big",    dimension: "size",    hint: "Look at how big it is!" },
+        { emoji: "1F408", name: "Cat",   targetAdj: "Small",  dimension: "size",    hint: "Notice how tiny!" },
+        { emoji: "1F3E0", name: "House", targetAdj: "Tall",   dimension: "size",    hint: "Look how high it goes!" },
+        // Color
+        { emoji: "1F986", name: "Duck",  targetAdj: "Yellow", dimension: "color",   hint: "What color do you see?" },
+        { emoji: "1F697", name: "Car",   targetAdj: "Red",    dimension: "color",   hint: "Notice the bright color!" },
+        { emoji: "1F438", name: "Frog",  targetAdj: "Green",  dimension: "color",   hint: "What color is it?" },
+        // Physical quality
+        { emoji: "1F40D", name: "Snake", targetAdj: "Long",   dimension: "quality", hint: "Look at how stretched out it is!" },
+        { emoji: "1F98B", name: "Butterfly", targetAdj: "Pretty", dimension: "quality", hint: "Look at the beautiful wings!" },
+        // Texture (conceptual)
+        { emoji: "1F411", name: "Sheep", targetAdj: "Fluffy", dimension: "texture", hint: "Imagine how the wool feels!" },
+        { emoji: "1FAA8", name: "Rock",  targetAdj: "Hard",   dimension: "texture", hint: "Think about what it feels like!" },
+      ],
+      test: [
+        { emoji: "1F418", name: "Elephant", targetAdj: "Gray",   dimension: "color" },
+        { emoji: "1F33B", name: "Flower",   targetAdj: "Yellow", dimension: "color" },
+        { emoji: "1F40B", name: "Whale",    targetAdj: "Huge",   dimension: "size" },
+        { emoji: "1F41C", name: "Ant",      targetAdj: "Tiny",   dimension: "size" },
+        { emoji: "1F422", name: "Turtle",   targetAdj: "Slow",   dimension: "quality" },
+        { emoji: "1F985", name: "Eagle",    targetAdj: "Fast",   dimension: "quality" },
+        { emoji: "1F994", name: "Hedgehog", targetAdj: "Prickly",dimension: "texture" },
+        { emoji: "1F407", name: "Bunny",    targetAdj: "Soft",   dimension: "texture" },
+      ],
+    };
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 659, 784].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0.18, now + i * 0.08);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.25);
+          o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.3);
+        });
+      };
+      const playPartial = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [440, 523].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.12, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.2);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.25);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(260, now);
+        o.frequency.linearRampToValueAtTime(200, now + 0.25);
+        g.gain.setValueAtTime(0.1, now); g.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playNeutral = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 440; o.type = "sine";
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        o.start(now); o.stop(now + 0.25);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.16, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playPartial, playWrong, playNeutral, playComplete };
+    };
+
+    // ── ADJECTIVE SCORING UI ────────────────────────────────
+    const AdjectiveScoring = ({ objectName, targetAdj, onScore, isTest }) => {
+      const [actualResponse, setActualResponse] = useState("");
+      const [scoreChoice, setScoreChoice] = useState(null);
+
+      const scoreOptions = [
+        { key: "target",      label: `✅ Target: "${targetAdj}"`, desc: "Said the expected adjective", color: "green" },
+        { key: "alternative", label: "🟡 Alternative Valid",       desc: "Different but accurate descriptor", color: "yellow" },
+        { key: "none",        label: "❌ No Adjective",            desc: "Repeated noun or no response", color: "red" },
+      ];
+
+      const handleSubmit = () => {
+        if (!scoreChoice) return;
+        onScore({ score: scoreChoice, actualResponse: actualResponse.trim() || "(not recorded)" });
+      };
+
+      return (
+        <div className="bg-white rounded-2xl p-5 card-shadow border-2 border-yellow-200 max-w-md mx-auto anim-slideup">
+          <div className="text-center mb-3">
+            <span className="fredoka text-lg text-yellow-800">
+              🎤 Caregiver: Score the adjective
+            </span>
+            <p className="nunito text-yellow-600 text-sm mt-1">
+              Target: <strong>"What kind of {objectName}?" → "{targetAdj}"</strong>
+            </p>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            {scoreOptions.map(opt => (
+              <button key={opt.key}
+                onClick={() => setScoreChoice(opt.key)}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-all nunito
+                  ${scoreChoice === opt.key
+                    ? (opt.color === "green" ? "border-green-400 bg-green-50" :
+                       opt.color === "yellow" ? "border-yellow-400 bg-yellow-50" :
+                       "border-red-400 bg-red-50")
+                    : "border-gray-200 bg-gray-50 hover:bg-gray-100"}`}>
+                <span className="font-bold text-sm">{opt.label}</span>
+                <span className="text-gray-500 text-xs ml-2">— {opt.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-4">
+            <label className="nunito text-sm text-yellow-700 font-semibold block mb-1">
+              What did they say? <span className="text-gray-400">(optional)</span>
+            </label>
+            <input type="text" value={actualResponse}
+              onChange={e => setActualResponse(e.target.value)}
+              placeholder='e.g. "big" or "fluffy dog"'
+              className="w-full px-4 py-2 rounded-xl border-2 border-yellow-200 nunito text-yellow-800 focus:outline-none focus:border-yellow-400" />
+          </div>
+
+          <button onClick={handleSubmit} disabled={!scoreChoice}
+            className={`w-full py-3 rounded-2xl font-bold text-lg transition-all fredoka
+              ${!scoreChoice
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-b from-yellow-400 to-yellow-600 text-white hover:from-yellow-300 hover:to-yellow-500 shadow-lg hover:scale-[1.02] border-2 border-yellow-700"}`}>
+            📝 Submit Score
+          </button>
+        </div>
+      );
+    };
+
+    // ── NAMING STEP (digital or vocal) ──────────────────────
+    const NamingStep = ({ item, onNamed }) => {
+      // For v1: simple tap-to-confirm that child named it
+      // Could add digital label selection for non-vocal learners
+      return (
+        <div className="text-center anim-slideup">
+          <div className="inline-block bg-yellow-50 rounded-2xl p-4 card-shadow border-2 border-yellow-200 max-w-sm">
+            <span className="fredoka text-lg text-yellow-800">
+              🎤 "What is this?"
+            </span>
+            <p className="nunito text-yellow-600 text-sm mt-1 mb-3">
+              Wait for the learner to say the name, then tap below.
+            </p>
+            <button onClick={onNamed}
+              className="px-6 py-2 rounded-2xl font-bold bg-gradient-to-b from-yellow-400 to-yellow-600 text-white hover:from-yellow-300 hover:to-yellow-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-yellow-700">
+              ✅ They named it
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const WhatKind = () => {
+      const [phase, setPhase] = useState("train");
+      const [trials, setTrials] = useState([]);
+      const [trialIndex, setTrialIndex] = useState(0);
+      const [step, setStep] = useState("name"); // "name" | "describe" | "scored"
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ train: null, test: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const [showSpeechBubble, setShowSpeechBubble] = useState(false);
+      const [adjectiveVocab, setAdjectiveVocab] = useState(new Set());
+      const { playCorrect, playPartial, playWrong, playNeutral, playComplete } = useSound();
+
+      useEffect(() => {
+        const shuffled = [...STIMULI.train];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setTrials(shuffled.slice(0, TRAIN_TRIALS));
+      }, []);
+
+      const item = trials[trialIndex];
+
+      const handleNamed = () => {
+        setStep("describe");
+      };
+
+      const handleAdjectiveScore = (result) => {
+        const isTest = phase === "test";
+        const isTarget = result.score === "target";
+        const isAlt = result.score === "alternative";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTest ? "TEST" : "TRAIN",
+          object_name: item.name,
+          target_adjective: item.targetAdj,
+          feature_dimension: item.dimension,
+          caregiver_score: result.score,
+          actual_response: result.actualResponse,
+          is_target: isTarget,
+          is_valid: isTarget || isAlt,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        // Track vocabulary
+        if (result.actualResponse && result.actualResponse !== "(not recorded)") {
+          setAdjectiveVocab(prev => new Set([...prev, result.actualResponse.toLowerCase()]));
+        }
+
+        if (isTest) {
+          playNeutral();
+          setScore(s => s + (isTarget ? 1 : isAlt ? 0.5 : 0));
+        } else if (isTarget) {
+          playCorrect();
+          setScore(s => s + 1);
+          setShowSpeechBubble(true);
+        } else if (isAlt) {
+          playPartial();
+          setScore(s => s + 0.5);
+          setShowSpeechBubble(true);
+        } else {
+          playWrong();
+        }
+
+        setStep("scored");
+        setFeedback(result.score);
+      };
+
+      const handleNext = () => {
+        if (trialIndex + 1 >= trials.length) {
+          const roundedScore = Math.round(score);
+          setPhaseScores(prev => ({ ...prev, [phase]: roundedScore }));
+          if (phase === "train" && roundedScore >= MASTERY_THRESHOLD) {
+            const shuffled = [...STIMULI.test];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setPhase("test"); setTrials(shuffled.slice(0, TEST_TRIALS));
+            setTrialIndex(0); setStep("name"); setFeedback(null);
+            setScore(0); setShowSpeechBubble(false);
+            return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              var _train = phase === "train" ? score : (phaseScores.train !== null ? phaseScores.train : (score || 0));
+              var _test = phase === "test" ? score : (phaseScores.test !== null ? phaseScores.test : null);
+              var _mastery = phase === "test" || phaseScores.test !== null;
+              window.FrameShift.saveSession("p9", _train, 10, _test, 8, _mastery);
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        setTrialIndex(i => i + 1);
+        setStep("name"); setFeedback(null); setShowSpeechBubble(false);
+      };
+
+      const handleRestart = () => {
+        const shuffled = [...STIMULI.train];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setPhase("train"); setTrials(shuffled.slice(0, TRAIN_TRIALS));
+        setTrialIndex(0); setStep("name"); setFeedback(null);
+        setScore(0); setPhaseScores({ train: null, test: null });
+        setSessionDone(false); setTrialLog([]); setShowSpeechBubble(false);
+        setAdjectiveVocab(new Set());
+      };
+
+      if (trials.length === 0) return (
+        <div className="min-h-screen studio flex items-center justify-center">
+          <div className="text-yellow-800 text-2xl fredoka">Setting up the studio...</div>
+        </div>
+      );
+
+      // ── SESSION COMPLETE ──────────────────────────────────
+      if (sessionDone) {
+        const allPhases = phaseScores.test !== null;
+        const dimensions = {};
+        trialLog.forEach(t => {
+          if (!dimensions[t.feature_dimension]) dimensions[t.feature_dimension] = { total: 0, valid: 0 };
+          dimensions[t.feature_dimension].total++;
+          if (t.is_valid) dimensions[t.feature_dimension].valid++;
+        });
+
+        return (
+          <div className="min-h-screen studio p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-8">
+              <div className="bg-white bg-opacity-95 rounded-3xl p-8 card-shadow text-center border-2 border-yellow-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "🎨" : "✏️"}</div>
+                <h2 className="text-3xl fredoka text-yellow-800 mb-4">
+                  {allPhases ? "Word Artist!" : "Good Describing!"}
+                </h2>
+                <div className="space-y-3 mb-4 text-left max-w-xs mx-auto">
+                  {phaseScores.train !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-yellow-700 font-semibold">Training</span>
+                      <span className={`font-bold ${phaseScores.train >= MASTERY_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
+                        {phaseScores.train}/{TRAIN_TRIALS} {phaseScores.train >= MASTERY_THRESHOLD ? "✓" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {phaseScores.test !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-yellow-700 font-semibold">Test (novel objects)</span>
+                      <span className="font-bold text-purple-600">{Math.round(phaseScores.test)}/{TEST_TRIALS}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Vocabulary breadth */}
+                {adjectiveVocab.size > 0 && (
+                  <div className="bg-yellow-50 rounded-2xl p-3 mb-4 border border-yellow-200">
+                    <span className="nunito text-sm text-yellow-700 font-semibold">Adjectives used ({adjectiveVocab.size} unique):</span>
+                    <div className="flex flex-wrap gap-1 mt-1 justify-center">
+                      {[...adjectiveVocab].map(adj => (
+                        <span key={adj} className="px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded-full text-xs fredoka">{adj}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dimension breakdown */}
+                {Object.keys(dimensions).length > 0 && (
+                  <div className="bg-yellow-50 rounded-2xl p-3 mb-4 border border-yellow-200 text-left">
+                    <span className="nunito text-sm text-yellow-700 font-semibold">By feature type:</span>
+                    <div className="space-y-1 mt-1">
+                      {Object.entries(dimensions).map(([dim, data]) => (
+                        <div key={dim} className="flex justify-between nunito text-sm">
+                          <span className="capitalize text-yellow-700">{dim}</span>
+                          <span className="text-yellow-800 font-bold">{data.valid}/{data.total}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-yellow-400 to-yellow-600 text-white hover:from-yellow-300 hover:to-yellow-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-yellow-700">
+                  🎨 Describe Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN TRIAL SCREEN ─────────────────────────────────
+      const isTest = phase === "test";
+
+      return (
+        <div className="min-h-screen studio p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-3xl sm:text-4xl fredoka text-yellow-900 drop-shadow-sm mb-1">
+                🎨 What Kind? 🎨
+              </h1>
+              <p className="text-yellow-700 nunito opacity-60 text-xs">
+                RFT Program 9 · Descriptive Frame
+              </p>
+            </div>
+
+            {/* Phase + progress */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`px-3 py-1 rounded-xl text-sm font-semibold nunito
+                ${!isTest ? "bg-yellow-500 text-white" : "bg-purple-500 text-white"}`}>
+                {!isTest ? "✏️ Training" : "🧪 Test"}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-xs nunito text-yellow-700 mb-0.5">
+                  <span>Item {trialIndex + 1} of {trials.length}</span>
+                  <span>{Math.round(score)} correct</span>
+                </div>
+                <div className="w-full bg-yellow-100 rounded-full h-2 overflow-hidden border border-yellow-200">
+                  <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-yellow-400 to-orange-400"
+                    style={{ width: `${(trialIndex / trials.length) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Object display */}
+            <div className="text-center mb-4 anim-slideup relative">
+              <div className="inline-flex flex-col items-center gap-2 bg-white bg-opacity-90 rounded-2xl px-10 py-6 card-shadow border-2 border-yellow-200 relative">
+                <img src={emojiURL(item.emoji)} alt={item.name}
+                  width="100" height="100" style={{width:100,height:100}} draggable={false} />
+                <span className="fredoka text-2xl text-yellow-900 font-bold">{item.name}</span>
+
+                {/* Speech bubble with adjective on success */}
+                {showSpeechBubble && (
+                  <div className="absolute -top-4 -right-4 bg-green-100 border-2 border-green-400 rounded-2xl px-4 py-2 anim-bubblepop">
+                    <span className="fredoka text-lg text-green-800">
+                      A <strong className="text-green-600 text-xl">{item.targetAdj.toUpperCase()}</strong> {item.name}!
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step flow */}
+            {step === "name" && (
+              <NamingStep item={item} onNamed={handleNamed} />
+            )}
+
+            {step === "describe" && (
+              <>
+                <div className="text-center mb-4">
+                  <span className={`inline-block px-5 py-2 rounded-2xl fredoka text-xl font-bold card-shadow
+                    ${isTest
+                      ? "bg-purple-100 text-purple-800 border-2 border-purple-200"
+                      : "bg-yellow-100 text-yellow-800 border-2 border-yellow-200"}`}>
+                    {isTest ? "🧪" : "🎨"} What <em>kind</em> of {item.name}?
+                  </span>
+                  {isTest && <p className="text-xs text-purple-600 nunito mt-1 opacity-70">Test — no hints</p>}
+                </div>
+
+                {/* Hint for training (scaffolding) */}
+                {!isTest && item.hint && (
+                  <div className="text-center mb-3">
+                    <span className="inline-block bg-yellow-50 text-yellow-700 px-4 py-1 rounded-xl text-sm nunito border border-yellow-200">
+                      💡 {item.hint}
+                    </span>
+                  </div>
+                )}
+
+                <AdjectiveScoring
+                  objectName={item.name}
+                  targetAdj={item.targetAdj}
+                  onScore={handleAdjectiveScore}
+                  isTest={isTest}
+                />
+              </>
+            )}
+
+            {step === "scored" && (
+              <>
+                {/* Feedback (training only) */}
+                {!isTest && (
+                  <div className={`text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-lg mx-auto max-w-md anim-slideup
+                    ${feedback === "target" ? "bg-green-100 text-green-800 border-2 border-green-300" :
+                      feedback === "alternative" ? "bg-yellow-100 text-yellow-800 border-2 border-yellow-300" :
+                      "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                    {feedback === "target" ? [`A ${item.targetAdj} ${item.name}! 🎨`, "Perfect description! ✨"][Math.floor(Math.random()*2)]
+                      : feedback === "alternative" ? `Good describing! The word we were looking for was "${item.targetAdj}" — but any accurate adjective counts! 🎨`
+                      : `Try to describe it! What makes this ${item.name} special? It's a ${item.targetAdj} ${item.name}! 💡`}
+                  </div>
+                )}
+                {isTest && (
+                  <div className="text-center mb-4 py-3 px-6 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                    Response recorded. 🎨
+                  </div>
+                )}
+
+                <div className="flex justify-center">
+                  <button onClick={handleNext}
+                    className="px-6 py-3 rounded-2xl font-bold text-lg bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-300 hover:to-orange-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-orange-700">
+                    {trialIndex + 1 < trials.length ? "🎨 Next →" : "✨ Finish"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Footer */}
+            <div className="text-center mt-6 text-yellow-700 opacity-30 text-xs nunito">
+              RFT Program 9 · What Kind? · Syntopic Systems
+              <br/>Emoji by <a href="https://openmoji.org" target="_blank" rel="noopener" className="underline">OpenMoji</a> (CC BY-SA 4.0)
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<WhatKind />);
+  </script>
+</body>
+</html>

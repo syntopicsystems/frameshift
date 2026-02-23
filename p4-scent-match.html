@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scent Match — RFT Program 4</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes breathe { 0%,100%{transform:scale(1);opacity:0.8} 50%{transform:scale(1.05);opacity:1} }
+    @keyframes sniff { 0%{transform:translateY(0) scale(1)} 30%{transform:translateY(-4px) scale(1.1)} 60%{transform:translateY(2px) scale(0.95)} 100%{transform:translateY(0) scale(1)} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-breathe { animation: breathe 3s ease-in-out infinite; }
+    .anim-sniff { animation: sniff 0.6s ease-in-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .garden {
+      background: linear-gradient(180deg, #FFF7ED 0%, #FEF3C7 40%, #ECFCCB 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06); }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRIALS_PER_PHASE = 9;
+    const MASTERY_THRESHOLD = 8;
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    const PHASES = {
+      AB: { label: "Word → Picture", relation: "A-B" },
+      BC: { label: "Picture → Scent", relation: "B-C" },
+      AC: { label: "Word → Scent (Test)", relation: "A-C" },
+    };
+
+    // ── STIMULUS CLASSES ────────────────────────────────────
+    // A = written word, B = picture, C = physical scent
+    const CLASSES = [
+      {
+        id: 1,
+        word: "Flower",
+        picture: { label: "Flower", emoji: "1F33A" },   // hibiscus
+        scent: "a real flower (or flower-scented item)",
+        scentShort: "flower",
+      },
+      {
+        id: 2,
+        word: "Pinecone",
+        picture: { label: "Pinecone", emoji: "1F332" },  // evergreen tree
+        scent: "a real pinecone (or pine-scented item)",
+        scentShort: "pinecone",
+      },
+      {
+        id: 3,
+        word: "Lemon",
+        picture: { label: "Lemon", emoji: "1F34B" },     // lemon
+        scent: "a real lemon (or lemon-scented item)",
+        scentShort: "lemon",
+      },
+    ];
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [587, 740, 880].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0.2, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(250, now);
+        o.frequency.linearRampToValueAtTime(200, now + 0.25);
+        g.gain.setValueAtTime(0.12, now);
+        g.gain.linearRampToValueAtTime(0.01, now + 0.35);
+        o.start(now); o.stop(now + 0.4);
+      };
+      const playChime = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 880; o.type = "sine";
+        g.gain.setValueAtTime(0.15, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.18, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playWrong, playChime, playComplete };
+    };
+
+    // ── TRIAL GENERATOR ─────────────────────────────────────
+    const generateTrials = (phase, count) => {
+      const trials = [];
+      const reps = Math.ceil(count / CLASSES.length);
+      const pool = [];
+      for (let r = 0; r < reps; r++) CLASSES.forEach(c => pool.push(c));
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      pool.slice(0, count).forEach(target => {
+        const options = [...CLASSES].sort(() => Math.random() - 0.5);
+        const correctIndex = options.findIndex(c => c.id === target.id);
+        trials.push({ target, options, correctIndex, phase });
+      });
+      return trials;
+    };
+
+    // ── CAREGIVER SETUP SCREEN ──────────────────────────────
+    const CaregiverSetup = ({ onReady }) => (
+      <div className="max-w-lg mx-auto mt-8">
+        <div className="bg-white rounded-3xl p-8 card-shadow border-2 border-amber-200 text-center">
+          <div className="text-5xl mb-4">👨‍👧</div>
+          <h2 className="text-3xl fredoka text-amber-800 mb-4">Caregiver Setup</h2>
+          <p className="nunito text-amber-700 mb-4">
+            This phase uses <strong>real scents</strong>. Please gather:
+          </p>
+          <div className="bg-amber-50 rounded-2xl p-4 mb-6 text-left">
+            <ul className="space-y-3 nunito text-amber-800">
+              {CLASSES.map(c => (
+                <li key={c.id} className="flex items-center gap-3">
+                  <img src={emojiURL(c.picture.emoji)} alt={c.picture.label} width="36" height="36" style={{width:36,height:36}} />
+                  <span><strong>{c.word}:</strong> {c.scent}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="nunito text-amber-600 text-sm mb-6">
+            Keep items hidden from the learner until the app asks you to present each one.
+          </p>
+          <button onClick={onReady}
+            className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-amber-400 to-amber-600 text-white hover:from-amber-300 hover:to-amber-500 shadow-lg hover:scale-105 transition-all duration-200 fredoka border-2 border-amber-700">
+            ✅ Items Ready — Start!
+          </button>
+        </div>
+      </div>
+    );
+
+    // ── CAREGIVER PRESENT-SCENT PROMPT ──────────────────────
+    const PresentScent = ({ scentLabel, onPresented }) => (
+      <div className="text-center anim-slideup">
+        <div className="inline-block bg-amber-50 rounded-2xl p-6 card-shadow border-2 border-amber-200 max-w-md">
+          <div className="text-4xl mb-3 anim-breathe">👃</div>
+          <p className="fredoka text-2xl text-amber-800 mb-2">
+            Caregiver: Present the <strong>{scentLabel}</strong>
+          </p>
+          <p className="nunito text-amber-600 text-sm mb-4">
+            Hold the item near the learner's nose and let them smell it. When ready, tap below.
+          </p>
+          <button onClick={onPresented}
+            className="px-6 py-3 rounded-2xl font-bold bg-gradient-to-b from-amber-400 to-amber-600 text-white hover:from-amber-300 hover:to-amber-500 shadow-lg hover:scale-105 transition-all duration-200 fredoka border-2 border-amber-700">
+            👃 Scent Presented
+          </button>
+        </div>
+      </div>
+    );
+
+    // ── OPTION CARD (pictures or YES/NO) ────────────────────
+    const PictureCard = ({ cls, onClick, selected, feedback, isCorrect, disabled }) => {
+      let border = "border-orange-100"; let bg = "bg-white"; let anim = "";
+      if (selected && feedback === "correct") { border="border-green-400"; bg="bg-green-50"; anim="anim-pop"; }
+      else if (selected && feedback === "wrong") { border="border-red-300"; bg="bg-red-50"; anim="anim-wiggle"; }
+      else if (!selected && feedback && isCorrect) { border="border-green-300"; bg="bg-green-50"; }
+      else if (selected && !feedback) { border="border-orange-400"; bg="bg-orange-50"; }
+
+      return (
+        <button onClick={onClick} disabled={disabled}
+          className={`rounded-2xl border-3 ${border} ${bg} card-shadow p-4
+            transition-all duration-200 ${!disabled?"hover:scale-105 cursor-pointer":"cursor-default"}
+            flex flex-col items-center gap-2 min-w-[110px] relative`}
+          style={{borderWidth:3}}>
+          <div className={anim} onAnimationEnd={e=>e.currentTarget.className=""}>
+            <img src={emojiURL(cls.picture.emoji)} alt={cls.picture.label}
+              width="64" height="64" style={{width:64,height:64}} draggable={false} />
+          </div>
+          <span className="nunito text-sm text-gray-600 font-semibold">{cls.picture.label}</span>
+          {feedback && isCorrect && <span className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✓</span>}
+          {selected && feedback === "wrong" && <span className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✗</span>}
+        </button>
+      );
+    };
+
+    // ── YES/NO BUTTONS (for scent matching) ─────────────────
+    const YesNoButtons = ({ onSelect, selected, feedback, isCorrectYes, disabled }) => (
+      <div className="flex gap-6 justify-center">
+        {["YES", "NO"].map(choice => {
+          const isYes = choice === "YES";
+          const isSelected = selected === choice;
+          const correct = isYes ? isCorrectYes : !isCorrectYes;
+          let border = "border-gray-200"; let bg = "bg-white"; let anim = "";
+
+          if (isSelected && feedback === "correct") { border="border-green-400"; bg="bg-green-50"; anim="anim-pop"; }
+          else if (isSelected && feedback === "wrong") { border="border-red-300"; bg="bg-red-50"; anim="anim-wiggle"; }
+          else if (!isSelected && feedback && correct) { border="border-green-300"; bg="bg-green-50"; }
+          else if (isSelected && !feedback) { border=isYes?"border-green-400":"border-red-400"; bg=isYes?"bg-green-50":"bg-red-50"; }
+
+          return (
+            <button key={choice} onClick={() => onSelect(choice)} disabled={disabled}
+              className={`rounded-2xl border-3 ${border} ${bg} card-shadow px-8 py-5
+                transition-all duration-200 ${!disabled?"hover:scale-105 cursor-pointer":"cursor-default"} relative`}
+              style={{borderWidth:3}}>
+              <div className={anim} onAnimationEnd={e=>e.currentTarget.className=""}>
+                <span className="fredoka text-3xl">{isYes ? "👍" : "👎"}</span>
+              </div>
+              <div className="fredoka text-lg mt-1">{choice}</div>
+            </button>
+          );
+        })}
+      </div>
+    );
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const ScentMatch = () => {
+      const [currentPhase, setCurrentPhase] = useState("AB");
+      const [trials, setTrials] = useState([]);
+      const [trialIndex, setTrialIndex] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ AB: null, BC: null, AC: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const [caregiverReady, setCaregiverReady] = useState(false);
+      const [scentPresented, setScentPresented] = useState(false);
+      const [scentTarget, setScentTarget] = useState(null); // For BC/AC: which scent is being presented
+      const { playCorrect, playWrong, playChime, playComplete } = useSound();
+
+      useEffect(() => {
+        if (currentPhase === "AB") {
+          setTrials(generateTrials("AB", TRIALS_PER_PHASE));
+        }
+      }, []);
+
+      // For scent phases (BC, AC), generate sequential presentation trials
+      // Each trial: present one scent, then show picture(s) for yes/no matching
+      const generateScentTrials = (phase) => {
+        const trials = [];
+        const reps = Math.ceil(TRIALS_PER_PHASE / CLASSES.length);
+        for (let r = 0; r < reps; r++) {
+          // For each scent, create one matching and some non-matching trials
+          CLASSES.forEach(target => {
+            // Present scent of target, then show a random picture — is it a match?
+            const showCorrect = Math.random() > 0.4; // ~60% matching trials
+            const shownClass = showCorrect
+              ? target
+              : CLASSES.filter(c => c.id !== target.id)[Math.floor(Math.random() * 2)];
+            trials.push({
+              scentClass: target,
+              shownClass,
+              isMatch: showCorrect,
+              phase,
+            });
+          });
+        }
+        // Shuffle and trim
+        for (let i = trials.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [trials[i], trials[j]] = [trials[j], trials[i]];
+        }
+        return trials.slice(0, TRIALS_PER_PHASE);
+      };
+
+      const startScentPhase = (phase) => {
+        const t = generateScentTrials(phase);
+        setTrials(t);
+        setTrialIndex(0);
+        setSelected(null);
+        setFeedback(null);
+        setScore(0);
+        setScentPresented(false);
+        setScentTarget(t[0].scentClass);
+      };
+
+      // ── HANDLERS ────────────────────────────────────────
+      const handleSelectPicture = (index) => {
+        if (feedback !== null) return;
+        setSelected(index);
+      };
+
+      const handleSelectYesNo = (choice) => {
+        if (feedback !== null) return;
+        setSelected(choice);
+      };
+
+      const handleSubmit = () => {
+        if (selected === null || feedback !== null) return;
+        const trial = trials[trialIndex];
+        const isTestPhase = currentPhase === "AC";
+        let isCorrect;
+
+        if (currentPhase === "AB") {
+          isCorrect = selected === trial.correctIndex;
+          setTrialLog(prev => [...prev, {
+            trial_number: trialLog.length + 1,
+            phase: "TRAIN", relation_type: "A-B",
+            stimulus: trial.target.word,
+            response: trial.options[selected].picture.label,
+            correct: trial.options[trial.correctIndex].picture.label,
+            is_correct: isCorrect,
+            timestamp: new Date().toISOString(),
+          }]);
+        } else {
+          // BC or AC: yes/no
+          const correctAnswer = trial.isMatch ? "YES" : "NO";
+          isCorrect = selected === correctAnswer;
+          setTrialLog(prev => [...prev, {
+            trial_number: trialLog.length + 1,
+            phase: isTestPhase ? "TEST" : "TRAIN",
+            relation_type: PHASES[currentPhase].relation,
+            scent_presented: trial.scentClass.word,
+            picture_shown: trial.shownClass.picture.label,
+            expected_match: trial.isMatch,
+            response: selected,
+            is_correct: isCorrect,
+            timestamp: new Date().toISOString(),
+          }]);
+        }
+
+        if (isCorrect) { playCorrect(); setScore(s => s + 1); setFeedback("correct"); }
+        else { playWrong(); setFeedback("wrong"); }
+      };
+
+      const handleNext = () => {
+        if (trialIndex + 1 >= TRIALS_PER_PHASE) {
+          setPhaseScores(prev => ({ ...prev, [currentPhase]: score }));
+          if (currentPhase === "AB" && score >= MASTERY_THRESHOLD - 1) {
+            setCurrentPhase("BC");
+            setCaregiverReady(false);
+            return;
+          } else if (currentPhase === "BC" && score >= MASTERY_THRESHOLD - 1) {
+            setCurrentPhase("AC");
+            setCaregiverReady(false);
+            return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              window.FrameShift.saveSession(
+                "p4",
+                phaseScores.BC !== null ? phaseScores.BC : (score || 0),
+                9,
+                phaseScores.AC !== null ? phaseScores.AC : null,
+                9,
+                phaseScores.AC !== null
+              );
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+
+        const nextIdx = trialIndex + 1;
+        setTrialIndex(nextIdx);
+        setSelected(null);
+        setFeedback(null);
+        setScentPresented(false);
+        if (currentPhase !== "AB") {
+          setScentTarget(trials[nextIdx].scentClass);
+        }
+      };
+
+      const handleRestart = () => {
+        setCurrentPhase("AB");
+        setTrials(generateTrials("AB", TRIALS_PER_PHASE));
+        setTrialIndex(0); setSelected(null); setFeedback(null);
+        setScore(0); setPhaseScores({ AB:null, BC:null, AC:null });
+        setSessionDone(false); setTrialLog([]);
+        setCaregiverReady(false); setScentPresented(false);
+      };
+
+      // ── RENDER ────────────────────────────────────────────
+
+      // Loading
+      if (trials.length === 0 && currentPhase === "AB") return (
+        <div className="min-h-screen garden flex items-center justify-center">
+          <div className="text-amber-800 text-2xl fredoka">Preparing scents...</div>
+        </div>
+      );
+
+      // Session complete
+      if (sessionDone) {
+        const allPhases = phaseScores.AC !== null;
+        return (
+          <div className="min-h-screen garden p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-12">
+              <div className="bg-white rounded-3xl p-8 sm:p-12 card-shadow text-center border-2 border-amber-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "🌺" : "👃"}</div>
+                <h2 className="text-4xl fredoka text-amber-800 mb-4">
+                  {allPhases ? "Scent Bridge Complete!" : "Good Work!"}
+                </h2>
+                <div className="space-y-3 mb-6 text-left max-w-xs mx-auto">
+                  {Object.entries(phaseScores).map(([ph, sc]) => (
+                    sc !== null && (
+                      <div key={ph} className="flex justify-between nunito">
+                        <span className="text-amber-700 font-semibold">{PHASES[ph].label}</span>
+                        <span className={`font-bold ${sc >= MASTERY_THRESHOLD - 1 ? "text-green-600" : "text-amber-600"}`}>
+                          {sc}/{TRIALS_PER_PHASE} {sc >= MASTERY_THRESHOLD - 1 ? "✓" : ""}
+                        </span>
+                      </div>
+                    )
+                  ))}
+                </div>
+                {allPhases && phaseScores.AC >= MASTERY_THRESHOLD - 1 && (
+                  <p className="text-amber-600 nunito mb-6">
+                    🎯 Cross-modal equivalence emerged! Word → Scent derived from Word → Picture → Scent.
+                  </p>
+                )}
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-amber-400 to-amber-600 text-white hover:from-amber-300 hover:to-amber-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-amber-700">
+                  🌸 Play Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Caregiver setup for scent phases
+      if ((currentPhase === "BC" || currentPhase === "AC") && !caregiverReady) {
+        return (
+          <div className="min-h-screen garden p-4 sm:p-8">
+            <div className="text-center mb-4">
+              <h1 className="text-4xl fredoka text-amber-900 anim-float">👃 Scent Match 👃</h1>
+            </div>
+            <CaregiverSetup onReady={() => {
+              setCaregiverReady(true);
+              startScentPhase(currentPhase);
+            }} />
+          </div>
+        );
+      }
+
+      const trial = trials[trialIndex];
+      if (!trial) return null;
+      const isTestPhase = currentPhase === "AC";
+      const isScent = currentPhase === "BC" || currentPhase === "AC";
+
+      return (
+        <div className="min-h-screen garden p-4 sm:p-8">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-4xl sm:text-5xl fredoka text-amber-900 drop-shadow-sm mb-1 anim-float">
+                👃 Scent Match 👃
+              </h1>
+              <p className="text-amber-700 nunito opacity-60 text-sm">
+                RFT Program 4 · Cross-Modal Olfactory
+              </p>
+            </div>
+
+            {/* Phase tabs */}
+            <div className="flex gap-2 justify-center mb-4 flex-wrap">
+              {["AB","BC","AC"].map(p => (
+                <div key={p} className={`px-3 py-1.5 rounded-xl text-sm font-semibold nunito transition-all
+                  ${p === currentPhase ? "bg-amber-500 text-white shadow-md" :
+                    phaseScores[p] !== null ? "bg-green-100 text-green-700 border border-green-300" :
+                    "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                  {phaseScores[p] !== null && "✓ "}{PHASES[p].label}
+                </div>
+              ))}
+            </div>
+
+            {/* Progress */}
+            <div className="flex justify-between text-sm nunito text-amber-700 mb-1 px-1">
+              <span>Trial {trialIndex + 1} of {TRIALS_PER_PHASE}</span>
+              <span>{score} correct</span>
+            </div>
+            <div className="w-full bg-amber-100 rounded-full h-3 mb-6 overflow-hidden border border-amber-200">
+              <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-amber-400 to-orange-400"
+                style={{ width: `${(trialIndex / TRIALS_PER_PHASE) * 100}%` }} />
+            </div>
+
+            {/* ── PHASE AB: Word → Picture ── */}
+            {currentPhase === "AB" && (
+              <>
+                {/* Stimulus: word */}
+                <div className="text-center mb-4 anim-slideup">
+                  <div className="inline-block bg-white rounded-2xl px-8 py-4 card-shadow border-2 border-amber-200">
+                    <span className="text-xs nunito text-amber-400 uppercase tracking-wider font-semibold">Word</span>
+                    <div className="fredoka text-4xl text-amber-800 font-bold">"{trial.target.word}"</div>
+                  </div>
+                </div>
+
+                <div className="text-center mb-5">
+                  <span className="inline-block bg-orange-100 text-orange-800 px-5 py-2 rounded-2xl fredoka text-xl font-bold border-2 border-orange-200 card-shadow">
+                    🖼️ Find the matching picture!
+                  </span>
+                </div>
+
+                <div className="flex gap-4 sm:gap-6 justify-center items-start mb-5 flex-wrap">
+                  {trial.options.map((cls, idx) => (
+                    <PictureCard key={idx} cls={cls}
+                      onClick={() => handleSelectPicture(idx)}
+                      selected={selected === idx}
+                      feedback={feedback}
+                      isCorrect={idx === trial.correctIndex}
+                      disabled={feedback !== null} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── PHASES BC & AC: Scent → Picture (YES/NO) ── */}
+            {isScent && (
+              <>
+                {/* Step 1: Caregiver presents scent */}
+                {!scentPresented ? (
+                  <PresentScent
+                    scentLabel={scentTarget.scentShort}
+                    onPresented={() => { setScentPresented(true); playChime(); }}
+                  />
+                ) : (
+                  <>
+                    {/* Show the stimulus */}
+                    <div className="text-center mb-4 anim-slideup">
+                      <div className="inline-block bg-white rounded-2xl px-8 py-4 card-shadow border-2 border-amber-200">
+                        {currentPhase === "BC" ? (
+                          <>
+                            <span className="text-xs nunito text-amber-400 uppercase tracking-wider font-semibold">You smelled</span>
+                            <div className="text-4xl mt-1 anim-sniff">👃</div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs nunito text-amber-400 uppercase tracking-wider font-semibold">Word + Scent</span>
+                            <div className="fredoka text-3xl text-amber-800 font-bold">"{trial.scentClass.word}"</div>
+                            <div className="text-2xl mt-1">👃</div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Show a picture, ask if it matches */}
+                    <div className="text-center mb-4">
+                      <span className={`inline-block px-5 py-2 rounded-2xl fredoka text-xl font-bold card-shadow
+                        ${isTestPhase ? "bg-purple-100 text-purple-800 border-2 border-purple-200" : "bg-orange-100 text-orange-800 border-2 border-orange-200"}`}>
+                        {isTestPhase ? "🧪" : "👃"} Does this picture match the scent?
+                      </span>
+                    </div>
+
+                    {/* The picture being judged */}
+                    <div className="flex justify-center mb-5">
+                      <div className="bg-white rounded-2xl p-5 card-shadow border-2 border-amber-100">
+                        <img src={emojiURL(trial.shownClass.picture.emoji)} alt={trial.shownClass.picture.label}
+                          width="80" height="80" style={{width:80,height:80}} draggable={false} />
+                        <div className="text-center nunito text-sm text-gray-600 mt-1 font-semibold">{trial.shownClass.picture.label}</div>
+                      </div>
+                    </div>
+
+                    {/* YES / NO */}
+                    <div className="mb-5">
+                      <YesNoButtons
+                        onSelect={handleSelectYesNo}
+                        selected={selected}
+                        feedback={isTestPhase ? null : feedback}
+                        isCorrectYes={trial.isMatch}
+                        disabled={feedback !== null}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Feedback */}
+            {feedback && !isTestPhase && (
+              <div className={`text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-lg mx-auto max-w-md anim-slideup
+                ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                {feedback === "correct"
+                  ? ["Great nose! 👃✨", "That's right! 🌸", "Perfect match! 🌺"][Math.floor(Math.random()*3)]
+                  : currentPhase === "AB"
+                    ? `Not quite — "${trial.target.word}" matches the ${trial.options[trial.correctIndex].picture.label} picture.`
+                    : `Not quite — the scent was ${trial.scentClass.scentShort}, ${trial.isMatch ? "which matches" : "which doesn't match"} ${trial.shownClass.picture.label}.`}
+              </div>
+            )}
+            {feedback && isTestPhase && (
+              <div className="text-center mb-4 py-3 px-6 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                Response recorded.
+              </div>
+            )}
+
+            {/* Action button */}
+            {(currentPhase === "AB" || scentPresented) && (
+              <div className="flex justify-center">
+                {!feedback ? (
+                  <button onClick={handleSubmit} disabled={selected === null}
+                    className={`px-8 py-4 rounded-2xl font-bold text-lg transition-all fredoka
+                      ${selected === null
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-gradient-to-b from-amber-400 to-amber-600 text-white hover:from-amber-300 hover:to-amber-500 shadow-lg hover:scale-105 border-2 border-amber-700"}`}>
+                    👃 Check!
+                  </button>
+                ) : (
+                  <button onClick={handleNext}
+                    className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-orange-400 to-orange-600 text-white hover:from-orange-300 hover:to-orange-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-orange-700">
+                    {trialIndex + 1 < TRIALS_PER_PHASE ? "👃 Next →" : "✨ Finish Phase"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="text-center mt-8 text-amber-700 opacity-30 text-xs nunito">
+              RFT Program 4 · Scent Match · Syntopic Systems
+              <br/>Emoji by <a href="https://openmoji.org" target="_blank" rel="noopener" className="underline">OpenMoji</a> (CC BY-SA 4.0)
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<ScentMatch />);
+  </script>
+</body>
+</html>

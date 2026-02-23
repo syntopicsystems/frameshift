@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taste Test — RFT Program 5</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes chew { 0%,100%{transform:scaleY(1)} 30%{transform:scaleY(0.85)} 60%{transform:scaleY(1.05)} }
+    @keyframes yum { 0%{transform:rotate(0)} 20%{transform:rotate(-8deg)} 40%{transform:rotate(8deg)} 60%{transform:rotate(-4deg)} 80%{transform:rotate(4deg)} 100%{transform:rotate(0)} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-chew { animation: chew 0.5s ease-in-out; }
+    .anim-yum { animation: yum 0.6s ease-in-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .kitchen {
+      background: linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 40%, #FECDD3 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06); }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRIALS_PER_PHASE = 9;
+    const MASTERY_THRESHOLD = 8;
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    const PHASES = {
+      AB: { label: "Taste → Picture", relation: "A-B" },
+      BC: { label: "Picture → Name (Vocal)", relation: "B-C" },
+      AC: { label: "Taste → Name (Test)", relation: "A-C" },
+    };
+
+    // ── STIMULUS CLASSES ────────────────────────────────────
+    // A = physical taste, B = picture, C = spoken name
+    const CLASSES = [
+      {
+        id: 1,
+        name: "Lime",
+        picture: { label: "Lime", emoji: "1F34B-200D-1F7E9" }, // lime (green lemon)
+        pictureFallback: "1F34B",
+        taste: "a small piece of lime",
+        tasteShort: "lime",
+        flavor: "sour",
+      },
+      {
+        id: 2,
+        name: "Cheese",
+        picture: { label: "Cheese", emoji: "1F9C0" },
+        taste: "a small piece of cheese",
+        tasteShort: "cheese",
+        flavor: "savory",
+      },
+      {
+        id: 3,
+        name: "Sweet Tart",
+        picture: { label: "Candy", emoji: "1F36C" },
+        taste: "a Sweet Tart candy",
+        tasteShort: "Sweet Tart",
+        flavor: "sweet & sour",
+      },
+    ];
+
+    // Reliable emoji URL with fallback
+    const getEmojiUrl = (cls) => {
+      // Some composite emoji codes may not exist; use fallback
+      return emojiURL(cls.pictureFallback || cls.picture.emoji);
+    };
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [587, 740, 880].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0.2, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(250, now);
+        o.frequency.linearRampToValueAtTime(200, now + 0.25);
+        g.gain.setValueAtTime(0.12, now);
+        g.gain.linearRampToValueAtTime(0.01, now + 0.35);
+        o.start(now); o.stop(now + 0.4);
+      };
+      const playChime = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 880; o.type = "sine";
+        g.gain.setValueAtTime(0.15, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.18, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playWrong, playChime, playComplete };
+    };
+
+    // ── TRIAL GENERATORS ────────────────────────────────────
+    // AB: present taste (caregiver), pick matching picture from 3
+    const generateABTrials = (count) => {
+      const trials = [];
+      const reps = Math.ceil(count / CLASSES.length);
+      const pool = [];
+      for (let r = 0; r < reps; r++) CLASSES.forEach(c => pool.push(c));
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      pool.slice(0, count).forEach(target => {
+        const options = [...CLASSES].sort(() => Math.random() - 0.5);
+        const correctIndex = options.findIndex(c => c.id === target.id);
+        trials.push({ target, options, correctIndex, type: "pick-picture" });
+      });
+      return trials;
+    };
+
+    // BC & AC: show picture (or present taste), child says name, caregiver scores
+    const generateVocalTrials = (count) => {
+      const trials = [];
+      const reps = Math.ceil(count / CLASSES.length);
+      const pool = [];
+      for (let r = 0; r < reps; r++) CLASSES.forEach(c => pool.push(c));
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      pool.slice(0, count).forEach(target => {
+        trials.push({ target, type: "vocal" });
+      });
+      return trials;
+    };
+
+    // ── CAREGIVER SETUP ─────────────────────────────────────
+    const CaregiverSetup = ({ phase, onReady }) => (
+      <div className="max-w-lg mx-auto mt-8">
+        <div className="bg-white rounded-3xl p-8 card-shadow border-2 border-rose-200 text-center">
+          <div className="text-5xl mb-4">👨‍👧‍👦</div>
+          <h2 className="text-3xl fredoka text-rose-800 mb-4">Caregiver Setup</h2>
+          {phase === "AB" || phase === "AC" ? (
+            <>
+              <p className="nunito text-rose-700 mb-4">
+                This phase uses <strong>real tastes</strong>. Please prepare small portions of:
+              </p>
+              <div className="bg-rose-50 rounded-2xl p-4 mb-6 text-left">
+                <ul className="space-y-3 nunito text-rose-800">
+                  {CLASSES.map(c => (
+                    <li key={c.id} className="flex items-center gap-3">
+                      <img src={getEmojiUrl(c)} alt={c.picture.label} width="36" height="36" style={{width:36,height:36}} />
+                      <span><strong>{c.name}:</strong> {c.taste} <em className="text-rose-500">({c.flavor})</em></span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="nunito text-rose-600 text-sm mb-6">
+                Present each taste when the app prompts you. Keep items hidden between trials.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="nunito text-rose-700 mb-4">
+                In this phase, the learner sees a picture and says its name out loud.
+              </p>
+              <p className="nunito text-rose-600 text-sm mb-6">
+                You'll score their vocal response as <strong>Correct</strong>, <strong>Partial</strong>, or <strong>Incorrect</strong>, with space to note what they actually said.
+              </p>
+            </>
+          )}
+          <button onClick={onReady}
+            className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-rose-400 to-rose-600 text-white hover:from-rose-300 hover:to-rose-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-rose-700">
+            ✅ Ready — Start!
+          </button>
+        </div>
+      </div>
+    );
+
+    // ── PRESENT TASTE PROMPT ────────────────────────────────
+    const PresentTaste = ({ tasteLabel, onPresented }) => (
+      <div className="text-center anim-slideup">
+        <div className="inline-block bg-rose-50 rounded-2xl p-6 card-shadow border-2 border-rose-200 max-w-md">
+          <div className="text-4xl mb-3 anim-chew">😋</div>
+          <p className="fredoka text-2xl text-rose-800 mb-2">
+            Caregiver: Give the <strong>{tasteLabel}</strong>
+          </p>
+          <p className="nunito text-rose-600 text-sm mb-4">
+            Place a small portion for the learner to taste. When they've tasted it, tap below.
+          </p>
+          <button onClick={onPresented}
+            className="px-6 py-3 rounded-2xl font-bold bg-gradient-to-b from-rose-400 to-rose-600 text-white hover:from-rose-300 hover:to-rose-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-rose-700">
+            😋 Taste Given
+          </button>
+        </div>
+      </div>
+    );
+
+    // ── VOCAL SCORING UI ────────────────────────────────────
+    const VocalScoring = ({ targetName, onScore, disabled }) => {
+      const [actualResponse, setActualResponse] = useState("");
+      const [scoreChoice, setScoreChoice] = useState(null); // "correct" | "partial" | "incorrect"
+
+      const scoreOptions = [
+        { key: "correct",   label: "✅ Correct",   desc: `Said "${targetName}" clearly`, color: "green" },
+        { key: "partial",   label: "🟡 Partial",   desc: "Close but not exact",          color: "yellow" },
+        { key: "incorrect", label: "❌ Incorrect",  desc: "Wrong word or no response",    color: "red" },
+      ];
+
+      const handleSubmitScore = () => {
+        if (!scoreChoice) return;
+        onScore({ score: scoreChoice, actualResponse: actualResponse.trim() || "(not recorded)" });
+      };
+
+      return (
+        <div className="bg-white rounded-2xl p-5 card-shadow border-2 border-rose-200 max-w-md mx-auto anim-slideup">
+          <div className="text-center mb-3">
+            <span className="fredoka text-xl text-rose-800">🎤 Caregiver: Score the response</span>
+            <p className="nunito text-rose-600 text-sm mt-1">
+              Target word: <strong>"{targetName}"</strong>
+            </p>
+          </div>
+
+          {/* Score buttons */}
+          <div className="space-y-2 mb-4">
+            {scoreOptions.map(opt => (
+              <button key={opt.key}
+                onClick={() => setScoreChoice(opt.key)}
+                disabled={disabled}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-all nunito
+                  ${scoreChoice === opt.key
+                    ? (opt.color === "green" ? "border-green-400 bg-green-50" :
+                       opt.color === "yellow" ? "border-yellow-400 bg-yellow-50" :
+                       "border-red-400 bg-red-50")
+                    : "border-gray-200 bg-gray-50 hover:bg-gray-100"}`}>
+                <span className="font-bold">{opt.label}</span>
+                <span className="text-gray-500 text-sm ml-2">— {opt.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* What they actually said */}
+          <div className="mb-4">
+            <label className="nunito text-sm text-rose-700 font-semibold block mb-1">
+              What did they actually say? <span className="text-gray-400">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={actualResponse}
+              onChange={e => setActualResponse(e.target.value)}
+              placeholder="e.g. 'lem' or 'yellow fruit'"
+              className="w-full px-4 py-2 rounded-xl border-2 border-rose-200 nunito text-rose-800 focus:outline-none focus:border-rose-400"
+            />
+          </div>
+
+          <button onClick={handleSubmitScore} disabled={!scoreChoice}
+            className={`w-full py-3 rounded-2xl font-bold text-lg transition-all fredoka
+              ${!scoreChoice
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-b from-rose-400 to-rose-600 text-white hover:from-rose-300 hover:to-rose-500 shadow-lg hover:scale-[1.02] border-2 border-rose-700"}`}>
+            📝 Submit Score
+          </button>
+        </div>
+      );
+    };
+
+    // ── PICTURE CARD ────────────────────────────────────────
+    const PictureCard = ({ cls, onClick, selected, feedback, isCorrect, disabled }) => {
+      let border = "border-rose-100"; let bg = "bg-white"; let anim = "";
+      if (selected && feedback === "correct") { border="border-green-400"; bg="bg-green-50"; anim="anim-pop"; }
+      else if (selected && feedback === "wrong") { border="border-red-300"; bg="bg-red-50"; anim="anim-wiggle"; }
+      else if (!selected && feedback && isCorrect) { border="border-green-300"; bg="bg-green-50"; }
+      else if (selected && !feedback) { border="border-rose-400"; bg="bg-rose-50"; }
+
+      return (
+        <button onClick={onClick} disabled={disabled}
+          className={`rounded-2xl border-3 ${border} ${bg} card-shadow p-4
+            transition-all duration-200 ${!disabled?"hover:scale-105 cursor-pointer":"cursor-default"}
+            flex flex-col items-center gap-2 min-w-[100px] relative`}
+          style={{borderWidth:3}}>
+          <div className={anim} onAnimationEnd={e=>e.currentTarget.className=""}>
+            <img src={getEmojiUrl(cls)} alt={cls.picture.label}
+              width="64" height="64" style={{width:64,height:64}} draggable={false} />
+          </div>
+          <span className="nunito text-sm text-gray-600 font-semibold">{cls.picture.label}</span>
+          {feedback && isCorrect && <span className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✓</span>}
+          {selected && feedback === "wrong" && <span className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✗</span>}
+        </button>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const TasteTest = () => {
+      const [currentPhase, setCurrentPhase] = useState("AB");
+      const [trials, setTrials] = useState([]);
+      const [trialIndex, setTrialIndex] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ AB: null, BC: null, AC: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const [caregiverReady, setCaregiverReady] = useState(false);
+      const [tastePresented, setTastePresented] = useState(false);
+      const [vocalScored, setVocalScored] = useState(false);
+      const { playCorrect, playWrong, playChime, playComplete } = useSound();
+
+      const startPhase = (phase) => {
+        if (phase === "AB" || phase === "AC") {
+          setTrials(generateABTrials(TRIALS_PER_PHASE));
+        } else {
+          setTrials(generateVocalTrials(TRIALS_PER_PHASE));
+        }
+        setTrialIndex(0); setSelected(null); setFeedback(null);
+        setScore(0); setTastePresented(false); setVocalScored(false);
+      };
+
+      useEffect(() => { startPhase("AB"); setCaregiverReady(false); }, []);
+
+      // ── AB HANDLERS (taste → pick picture) ────────────────
+      const handleSelectPicture = (index) => {
+        if (feedback !== null) return;
+        setSelected(index);
+      };
+
+      const handleSubmitAB = () => {
+        if (selected === null || feedback !== null) return;
+        const trial = trials[trialIndex];
+        const isCorrect = selected === trial.correctIndex;
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: "TRAIN", relation_type: "A-B",
+          taste: trial.target.name,
+          response: trial.options[selected].name,
+          correct: trial.options[trial.correctIndex].name,
+          is_correct: isCorrect,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isCorrect) { playCorrect(); setScore(s => s + 1); setFeedback("correct"); }
+        else { playWrong(); setFeedback("wrong"); }
+      };
+
+      // ── VOCAL HANDLER (BC and AC) ─────────────────────────
+      const handleVocalScore = (result) => {
+        const trial = trials[trialIndex];
+        const isCorrect = result.score === "correct";
+        const isTestPhase = currentPhase === "AC";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTestPhase ? "TEST" : "TRAIN",
+          relation_type: PHASES[currentPhase].relation,
+          target_name: trial.target.name,
+          stimulus_type: currentPhase === "BC" ? "picture" : "taste",
+          caregiver_score: result.score,
+          actual_response: result.actualResponse,
+          is_correct: isCorrect,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isCorrect) { playCorrect(); setScore(s => s + 1); setFeedback("correct"); }
+        else if (result.score === "partial") { playChime(); setScore(s => s + 0.5); setFeedback("partial"); }
+        else { playWrong(); setFeedback("wrong"); }
+        setVocalScored(true);
+      };
+
+      // ── NEXT / ADVANCE ────────────────────────────────────
+      const handleNext = () => {
+        if (trialIndex + 1 >= TRIALS_PER_PHASE) {
+          const roundedScore = Math.round(score);
+          setPhaseScores(prev => ({ ...prev, [currentPhase]: roundedScore }));
+          if (currentPhase === "AB" && roundedScore >= MASTERY_THRESHOLD - 1) {
+            setCurrentPhase("BC"); setCaregiverReady(false); return;
+          } else if (currentPhase === "BC" && roundedScore >= MASTERY_THRESHOLD - 1) {
+            setCurrentPhase("AC"); setCaregiverReady(false); return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              window.FrameShift.saveSession(
+                "p5",
+                phaseScores.BC !== null ? phaseScores.BC : (score || 0),
+                9,
+                phaseScores.AC !== null ? phaseScores.AC : null,
+                9,
+                phaseScores.AC !== null
+              );
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        setTrialIndex(i => i + 1);
+        setSelected(null); setFeedback(null);
+        setTastePresented(false); setVocalScored(false);
+      };
+
+      const handleRestart = () => {
+        setCurrentPhase("AB"); startPhase("AB");
+        setPhaseScores({ AB:null, BC:null, AC:null });
+        setSessionDone(false); setTrialLog([]);
+        setCaregiverReady(false);
+      };
+
+      // ── LOADING ───────────────────────────────────────────
+      if (trials.length === 0) return (
+        <div className="min-h-screen kitchen flex items-center justify-center">
+          <div className="text-rose-800 text-2xl fredoka">Preparing tastes...</div>
+        </div>
+      );
+
+      // ── SESSION COMPLETE ──────────────────────────────────
+      if (sessionDone) {
+        const allPhases = phaseScores.AC !== null;
+        return (
+          <div className="min-h-screen kitchen p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-12">
+              <div className="bg-white rounded-3xl p-8 sm:p-12 card-shadow text-center border-2 border-rose-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "🎉" : "😋"}</div>
+                <h2 className="text-4xl fredoka text-rose-800 mb-4">
+                  {allPhases ? "Taste Bridge Complete!" : "Tasty Progress!"}
+                </h2>
+                <div className="space-y-3 mb-6 text-left max-w-xs mx-auto">
+                  {Object.entries(phaseScores).map(([ph, sc]) => (
+                    sc !== null && (
+                      <div key={ph} className="flex justify-between nunito">
+                        <span className="text-rose-700 font-semibold">{PHASES[ph].label}</span>
+                        <span className={`font-bold ${sc >= MASTERY_THRESHOLD - 1 ? "text-green-600" : "text-rose-600"}`}>
+                          {sc}/{TRIALS_PER_PHASE} {sc >= MASTERY_THRESHOLD - 1 ? "✓" : ""}
+                        </span>
+                      </div>
+                    )
+                  ))}
+                </div>
+                {allPhases && phaseScores.AC >= MASTERY_THRESHOLD - 1 && (
+                  <p className="text-rose-600 nunito mb-6">
+                    🎯 Cross-modal naming emerged! Taste → Name derived from Taste → Picture → Name.
+                  </p>
+                )}
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-rose-400 to-rose-600 text-white hover:from-rose-300 hover:to-rose-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-rose-700">
+                  😋 Play Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── CAREGIVER SETUP GATE ──────────────────────────────
+      if (!caregiverReady) {
+        return (
+          <div className="min-h-screen kitchen p-4 sm:p-8">
+            <div className="text-center mb-4">
+              <h1 className="text-4xl fredoka text-rose-900 anim-float">😋 Taste Test 😋</h1>
+            </div>
+            <CaregiverSetup phase={currentPhase} onReady={() => {
+              setCaregiverReady(true);
+              startPhase(currentPhase);
+            }} />
+          </div>
+        );
+      }
+
+      // ── TRIAL SCREEN ──────────────────────────────────────
+      const trial = trials[trialIndex];
+      const isTestPhase = currentPhase === "AC";
+      const needsTaste = currentPhase === "AB" || currentPhase === "AC";
+      const isVocal = currentPhase === "BC" || currentPhase === "AC";
+
+      return (
+        <div className="min-h-screen kitchen p-4 sm:p-8">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-4xl sm:text-5xl fredoka text-rose-900 drop-shadow-sm mb-1 anim-float">
+                😋 Taste Test 😋
+              </h1>
+              <p className="text-rose-700 nunito opacity-60 text-sm">
+                RFT Program 5 · Cross-Modal Gustatory
+              </p>
+            </div>
+
+            {/* Phase tabs */}
+            <div className="flex gap-2 justify-center mb-4 flex-wrap">
+              {["AB","BC","AC"].map(p => (
+                <div key={p} className={`px-3 py-1.5 rounded-xl text-sm font-semibold nunito transition-all
+                  ${p === currentPhase ? "bg-rose-500 text-white shadow-md" :
+                    phaseScores[p] !== null ? "bg-green-100 text-green-700 border border-green-300" :
+                    "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                  {phaseScores[p] !== null && "✓ "}{PHASES[p].label}
+                </div>
+              ))}
+            </div>
+
+            {/* Progress */}
+            <div className="flex justify-between text-sm nunito text-rose-700 mb-1 px-1">
+              <span>Trial {trialIndex + 1} of {TRIALS_PER_PHASE}</span>
+              <span>{Math.round(score)} correct</span>
+            </div>
+            <div className="w-full bg-rose-100 rounded-full h-3 mb-6 overflow-hidden border border-rose-200">
+              <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-rose-400 to-pink-400"
+                style={{ width: `${(trialIndex / TRIALS_PER_PHASE) * 100}%` }} />
+            </div>
+
+            {/* ── PHASE AB: Taste → Pick Picture ── */}
+            {currentPhase === "AB" && (
+              <>
+                {!tastePresented ? (
+                  <PresentTaste tasteLabel={trial.target.tasteShort} onPresented={() => { setTastePresented(true); playChime(); }} />
+                ) : (
+                  <>
+                    <div className="text-center mb-4 anim-slideup">
+                      <div className="inline-block bg-white rounded-2xl px-8 py-4 card-shadow border-2 border-rose-200">
+                        <span className="text-xs nunito text-rose-400 uppercase tracking-wider font-semibold">You tasted</span>
+                        <div className="text-4xl mt-1 anim-yum">😋</div>
+                      </div>
+                    </div>
+                    <div className="text-center mb-5">
+                      <span className="inline-block bg-rose-100 text-rose-800 px-5 py-2 rounded-2xl fredoka text-xl font-bold border-2 border-rose-200 card-shadow">
+                        🖼️ Which picture matches that taste?
+                      </span>
+                    </div>
+                    <div className="flex gap-4 sm:gap-6 justify-center items-start mb-5 flex-wrap">
+                      {trial.options.map((cls, idx) => (
+                        <PictureCard key={idx} cls={cls}
+                          onClick={() => handleSelectPicture(idx)}
+                          selected={selected === idx} feedback={feedback}
+                          isCorrect={idx === trial.correctIndex}
+                          disabled={feedback !== null} />
+                      ))}
+                    </div>
+                    {/* Submit + feedback */}
+                    {feedback && (
+                      <div className={`text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-lg mx-auto max-w-md anim-slideup
+                        ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                        {feedback === "correct"
+                          ? ["Yummy match! 😋", "That's right! 🎉", "Tasty! ✨"][Math.floor(Math.random()*3)]
+                          : `Not quite — that taste was ${trial.target.tasteShort} (${trial.target.picture.label}).`}
+                      </div>
+                    )}
+                    <div className="flex justify-center">
+                      {!feedback ? (
+                        <button onClick={handleSubmitAB} disabled={selected === null}
+                          className={`px-8 py-4 rounded-2xl font-bold text-lg transition-all fredoka
+                            ${selected === null ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              : "bg-gradient-to-b from-rose-400 to-rose-600 text-white hover:from-rose-300 hover:to-rose-500 shadow-lg hover:scale-105 border-2 border-rose-700"}`}>
+                          😋 Check!
+                        </button>
+                      ) : (
+                        <button onClick={handleNext}
+                          className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-pink-400 to-pink-600 text-white hover:from-pink-300 hover:to-pink-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-pink-700">
+                          {trialIndex + 1 < TRIALS_PER_PHASE ? "😋 Next →" : "✨ Finish Phase"}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── PHASE BC: Picture → Name (Vocal) ── */}
+            {currentPhase === "BC" && (
+              <>
+                <div className="text-center mb-4 anim-slideup">
+                  <div className="inline-block bg-white rounded-2xl px-8 py-5 card-shadow border-2 border-rose-200">
+                    <span className="text-xs nunito text-rose-400 uppercase tracking-wider font-semibold">Picture</span>
+                    <img src={getEmojiUrl(trial.target)} alt={trial.target.picture.label}
+                      width="80" height="80" style={{width:80,height:80,margin:"8px auto 0"}} draggable={false} />
+                  </div>
+                </div>
+                <div className="text-center mb-5">
+                  <span className="inline-block bg-rose-100 text-rose-800 px-5 py-2 rounded-2xl fredoka text-xl font-bold border-2 border-rose-200 card-shadow">
+                    🎤 Say the name of this food!
+                  </span>
+                </div>
+
+                {!vocalScored ? (
+                  <VocalScoring targetName={trial.target.name} onScore={handleVocalScore} disabled={false} />
+                ) : (
+                  <>
+                    <div className={`text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-lg mx-auto max-w-md anim-slideup
+                      ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" :
+                        feedback === "partial" ? "bg-yellow-100 text-yellow-800 border-2 border-yellow-300" :
+                        "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                      {feedback === "correct" ? "Great job saying the name! 🎤✨"
+                        : feedback === "partial" ? `Almost! The word is "${trial.target.name}". Keep trying! 🎤`
+                        : `The word is "${trial.target.name}". Let's practice more! 🎤`}
+                    </div>
+                    <div className="flex justify-center">
+                      <button onClick={handleNext}
+                        className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-pink-400 to-pink-600 text-white hover:from-pink-300 hover:to-pink-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-pink-700">
+                        {trialIndex + 1 < TRIALS_PER_PHASE ? "🎤 Next →" : "✨ Finish Phase"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── PHASE AC: Taste → Name (Test, Derived) ── */}
+            {currentPhase === "AC" && (
+              <>
+                {!tastePresented ? (
+                  <PresentTaste tasteLabel={trial.target.tasteShort} onPresented={() => { setTastePresented(true); playChime(); }} />
+                ) : (
+                  <>
+                    <div className="text-center mb-4 anim-slideup">
+                      <div className="inline-block bg-white rounded-2xl px-8 py-4 card-shadow border-2 border-purple-200">
+                        <span className="text-xs nunito text-purple-400 uppercase tracking-wider font-semibold">You tasted — now name it!</span>
+                        <div className="text-4xl mt-1 anim-yum">😋🎤</div>
+                      </div>
+                    </div>
+                    <div className="text-center mb-5">
+                      <span className="inline-block bg-purple-100 text-purple-800 px-5 py-2 rounded-2xl fredoka text-xl font-bold border-2 border-purple-200 card-shadow">
+                        🧪 Say the name of what you tasted!
+                      </span>
+                      <p className="text-xs text-purple-600 nunito mt-1 opacity-70">Test phase — no hints</p>
+                    </div>
+
+                    {!vocalScored ? (
+                      <VocalScoring targetName={trial.target.name} onScore={handleVocalScore} disabled={false} />
+                    ) : (
+                      <>
+                        <div className="text-center mb-4 py-3 px-6 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                          Response recorded.
+                        </div>
+                        <div className="flex justify-center">
+                          <button onClick={handleNext}
+                            className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-purple-400 to-purple-600 text-white hover:from-purple-300 hover:to-purple-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-purple-700">
+                            {trialIndex + 1 < TRIALS_PER_PHASE ? "🧪 Next →" : "✨ Finish Phase"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Footer */}
+            <div className="text-center mt-8 text-rose-700 opacity-30 text-xs nunito">
+              RFT Program 5 · Taste Test · Syntopic Systems
+              <br/>Emoji by <a href="https://openmoji.org" target="_blank" rel="noopener" className="underline">OpenMoji</a> (CC BY-SA 4.0)
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<TasteTest />);
+  </script>
+</body>
+</html>

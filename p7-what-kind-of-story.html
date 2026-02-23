@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Kind of Story? — RFT Program 7</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-4deg)} 75%{transform:rotate(4deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes shelve { 0%{transform:translateY(-20px) scale(0.8);opacity:0} 60%{transform:translateY(4px) scale(1.05);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+    @keyframes pageFlip { 0%{transform:rotateY(0)} 100%{transform:rotateY(-180deg)} }
+    @keyframes bookOpen { 0%{transform:perspective(800px) rotateY(-90deg);opacity:0} 100%{transform:perspective(800px) rotateY(0);opacity:1} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .anim-shelve { animation: shelve 0.4s ease-out; }
+    .anim-bookopen { animation: bookOpen 0.5s ease-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .story-font { font-family: 'Merriweather', serif; }
+    .library {
+      background: linear-gradient(180deg, #FDF2F8 0%, #FCE7F3 30%, #FBCFE8 70%, #F9A8D4 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06); }
+    .book-spine {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRAIN_STORIES_PER_GENRE = 4;
+    const TEST_STORIES_PER_GENRE = 4;
+    const MASTERY_THRESHOLD = 12; // out of 16 training trials
+    const GENRES = ["Mystery", "Non-Fiction", "History", "Fantasy"];
+    const GENRE_META = {
+      Mystery:      { emoji: "🔍", color: "#7C3AED", bg: "#EDE9FE", border: "#C4B5FD" },
+      "Non-Fiction": { emoji: "📚", color: "#0369A1", bg: "#E0F2FE", border: "#7DD3FC" },
+      History:      { emoji: "🏛️", color: "#92400E", bg: "#FEF3C7", border: "#FCD34D" },
+      Fantasy:      { emoji: "✨", color: "#059669", bg: "#D1FAE5", border: "#6EE7B7" },
+    };
+
+    // ── STORY BANK ──────────────────────────────────────────
+    // 32 original stories (4 genres × 8 stories: 4 train, 4 test)
+    // Each story: { title, pages[], genre, set: "train"|"test" }
+    const STORIES = [
+      // ═══ MYSTERY — TRAIN ═══
+      { title: "The Missing Cookie", genre: "Mystery", set: "train", pages: [
+        "Maya walked into the kitchen and gasped. The plate where she had left three chocolate chip cookies was completely empty!",
+        "She noticed crumbs leading across the floor toward the back door. A tiny chocolate smudge was on the door handle.",
+        "Maya followed the trail of crumbs outside. They led to the doghouse, where Biscuit was licking his paws with a very guilty look.",
+        "\"Aha!\" Maya laughed. \"I found my cookie thief!\" The clues had led her right to the sneaky culprit."
+      ]},
+      { title: "The Strange Footprints", genre: "Mystery", set: "train", pages: [
+        "After the first snow of winter, Leo found strange footprints in his backyard. They were too big for a cat and too small for a person.",
+        "He grabbed his magnifying glass and followed them. The prints went past the garden, around the shed, and stopped at the old oak tree.",
+        "Leo looked up. There, sitting on a branch, was a raccoon holding one of his dad's gardening gloves!",
+        "Leo sketched the prints in his notebook. Another mystery solved — the midnight visitor was just a curious raccoon."
+      ]},
+      { title: "Where Is Mr. Whiskers?", genre: "Mystery", set: "train", pages: [
+        "The classroom hamster, Mr. Whiskers, was gone! His cage door was open and he was nowhere to be seen.",
+        "The children searched everywhere. Then Anika noticed something — tiny teeth marks on a cardboard box near the window.",
+        "She carefully lifted the box. Inside was a nest made of shredded paper, and there was Mr. Whiskers, fast asleep with five tiny babies!",
+        "The mystery wasn't a jailbreak at all — Mr. Whiskers had been building a secret nursery the whole time."
+      ]},
+      { title: "The Vanishing Lunch", genre: "Mystery", set: "train", pages: [
+        "Every day, part of Sam's lunch disappeared from his locker before noon. His sandwich would be half-eaten, his apple gone.",
+        "Sam set a clever trap. He put a note inside his lunchbox that said, \"Smile! You're on camera!\" and drew a picture of a camera.",
+        "The next day, his friend Marcus came up looking embarrassed. \"I'm sorry, Sam. I forgot my lunch all week and was too embarrassed to ask.\"",
+        "Sam wasn't even mad. \"Just ask next time! I'll share.\" The mystery was solved with kindness."
+      ]},
+
+      // ═══ MYSTERY — TEST ═══
+      { title: "The Midnight Sound", genre: "Mystery", set: "test", pages: [
+        "For three nights in a row, Jada heard a strange tapping sound coming from the attic right at midnight.",
+        "She was too scared to go alone, so she asked her older brother to help investigate. They crept upstairs with a flashlight.",
+        "In the corner of the attic, they found an old window shutter had come loose. The wind was blowing it against the wall — tap, tap, tap!",
+        "Jada laughed with relief. The spooky sound was just the wind playing tricks. She helped her brother fix the shutter."
+      ]},
+      { title: "The Garden Thief", genre: "Mystery", set: "test", pages: [
+        "Grandpa's prize tomatoes kept disappearing right before they turned ripe. He checked the garden every morning, but could never catch anyone.",
+        "He sprinkled flour around the plants to catch footprints. The next morning, he found small handprints — and a trail of red juice.",
+        "The trail led to the neighbor's yard, where a little girl was sitting with a basket of tomatoes, eating one like an apple.",
+        "\"They looked so yummy from my window!\" she said. Grandpa smiled and gave her some seeds to grow her own."
+      ]},
+      { title: "The Missing Paintbrush", genre: "Mystery", set: "test", pages: [
+        "Ms. Rivera's favorite paintbrush disappeared every art class, then reappeared by the end of the period.",
+        "She watched carefully during the next class. When she turned to help a student, the brush vanished. When she turned back, it was there!",
+        "Then she noticed — the magnet on her supply cup was pulling the brush across the table whenever the janitor rolled his metal cart past the door!",
+        "It wasn't a person at all. It was magnetism! Ms. Rivera moved her cup and the brush stayed put from then on."
+      ]},
+      { title: "Who Drew on the Wall?", genre: "Mystery", set: "test", pages: [
+        "Someone had drawn a big smiley face on the school hallway wall with blue marker. The principal asked all the students, but nobody confessed.",
+        "Officer Chen, the school resource officer, noticed the marker line started thick and got thinner — whoever drew it was getting shorter as they moved right.",
+        "That meant the artist was reaching UP, not DOWN. It had to be someone small. They checked the kindergarten room and found a little boy with blue ink on his fingers.",
+        "\"I wanted to make everyone smile!\" he said. They gave him paper to draw on instead."
+      ]},
+
+      // ═══ NON-FICTION — TRAIN ═══
+      { title: "How Bees Make Honey", genre: "Non-Fiction", set: "train", pages: [
+        "Bees are amazing insects that work together to make honey. A single hive can have over 50,000 bees, each with a special job.",
+        "Worker bees fly from flower to flower, collecting a sweet liquid called nectar. They store it in a special honey stomach separate from their real stomach.",
+        "Back at the hive, they pass the nectar to other bees who chew it and spread it in honeycomb cells. Then they fan it with their wings until the water evaporates.",
+        "What's left is thick, golden honey! Bees make honey to eat during winter, but they usually make more than they need — which is why we can enjoy it too."
+      ]},
+      { title: "Why Do Leaves Change Color?", genre: "Non-Fiction", set: "train", pages: [
+        "In autumn, leaves turn from green to beautiful shades of red, orange, and yellow. But did you know those colors were there all along?",
+        "Leaves are green because of a chemical called chlorophyll, which helps them capture sunlight to make food. Chlorophyll is so strong it covers up other colors.",
+        "When days get shorter and colder in fall, trees stop making chlorophyll. As the green fades, the hidden yellows and oranges finally show through.",
+        "Red and purple colors are actually NEW — trees make them as a kind of sunscreen to protect the leaf as it prepares to fall. Science makes autumn beautiful!"
+      ]},
+      { title: "Your Amazing Heart", genre: "Non-Fiction", set: "train", pages: [
+        "Your heart is a muscle about the size of your fist, and it works harder than any other muscle in your body. It never takes a break!",
+        "Every day, your heart beats about 100,000 times and pumps enough blood to fill a swimming pool. The blood carries oxygen to every part of your body.",
+        "When you exercise, your heart beats faster because your muscles need more oxygen. That's why you can feel your heartbeat after running.",
+        "You can keep your heart healthy by exercising, eating fruits and vegetables, and getting enough sleep. Your heart takes care of you, so take care of it!"
+      ]},
+      { title: "How Clouds Form", genre: "Non-Fiction", set: "train", pages: [
+        "Clouds might look like fluffy cotton, but they're actually made of millions of tiny water droplets or ice crystals floating in the air.",
+        "Here's how they form: The sun heats water in oceans, lakes, and puddles, turning it into invisible water vapor that rises into the sky.",
+        "Higher up, the air is cooler. When water vapor gets cold enough, it turns back into tiny water droplets that cling to bits of dust in the air.",
+        "Billions of these tiny droplets together make a cloud! When the droplets get heavy enough, they fall as rain — and the whole cycle starts again."
+      ]},
+
+      // ═══ NON-FICTION — TEST ═══
+      { title: "The Water Cycle", genre: "Non-Fiction", set: "test", pages: [
+        "The water you drink today might be the same water a dinosaur drank millions of years ago! Water on Earth is constantly being recycled.",
+        "The sun warms oceans and lakes, turning water into vapor that rises into the atmosphere. This is called evaporation.",
+        "When vapor cools high in the sky, it forms clouds through condensation. Eventually, the water falls back down as rain or snow — that's precipitation.",
+        "The water flows into rivers, soaks into the ground, and returns to the ocean. Then the whole process repeats. This is the water cycle!"
+      ]},
+      { title: "How Seeds Travel", genre: "Non-Fiction", set: "test", pages: [
+        "Plants can't walk, so how do their seeds get to new places to grow? Seeds have many clever ways of traveling!",
+        "Some seeds, like dandelions, have fluffy parachutes that let the wind carry them far away. Maple seeds spin like tiny helicopters.",
+        "Other seeds are inside tasty fruits. Animals eat the fruit and later drop the seeds somewhere new. Some seeds even have tiny hooks that stick to animal fur.",
+        "Coconuts can float across the ocean to reach new islands! Every seed has its own amazing way of finding a new home."
+      ]},
+      { title: "Why the Sky Is Blue", genre: "Non-Fiction", set: "test", pages: [
+        "Have you ever wondered why the sky is blue and not green or purple? The answer has to do with how sunlight travels.",
+        "Sunlight looks white, but it's actually made of all the colors of the rainbow mixed together. Each color has a different amount of energy.",
+        "When sunlight enters our atmosphere, it bumps into tiny gas molecules. Blue light bounces around the most because of its short wavelength.",
+        "All that scattered blue light reaches our eyes from every direction — making the whole sky look blue! At sunset, light travels farther through the atmosphere, so red and orange colors scatter instead."
+      ]},
+      { title: "Amazing Octopuses", genre: "Non-Fiction", set: "test", pages: [
+        "Octopuses are some of the smartest animals in the ocean. They have eight arms, three hearts, and blue blood!",
+        "Two of their hearts pump blood to their gills, while the third pumps it to the rest of their body. Their blood is blue because it uses copper instead of iron.",
+        "Octopuses can change their skin color and texture in less than a second to hide from predators. They can even make themselves look like rocks or coral.",
+        "Scientists have watched octopuses solve puzzles, open jars, and even escape from aquariums. They are truly remarkable creatures!"
+      ]},
+
+      // ═══ HISTORY — TRAIN ═══
+      { title: "The First Moon Landing", genre: "History", set: "train", pages: [
+        "On July 20, 1969, something happened that people had dreamed about for thousands of years. Humans finally set foot on the Moon!",
+        "Astronauts Neil Armstrong and Buzz Aldrin landed their spacecraft, called the Eagle, on the Moon's surface while Michael Collins orbited above.",
+        "Neil Armstrong climbed down the ladder and became the first person to walk on the Moon. He said, \"That's one small step for man, one giant leap for mankind.\"",
+        "They collected moon rocks, planted an American flag, and returned safely to Earth. About 600 million people around the world watched it happen on television."
+      ]},
+      { title: "The Great Fire of London", genre: "History", set: "train", pages: [
+        "In September 1666, a small fire started in a bakery on Pudding Lane in London. Nobody thought much of it at first — fires happened all the time.",
+        "But the summer had been very hot and dry. The wooden houses were packed close together. The fire spread quickly from house to house.",
+        "For four days, the fire burned through the city. Over 13,000 houses and 87 churches were destroyed. Amazingly, very few people died.",
+        "After the fire, London was rebuilt with stone and brick instead of wood, with wider streets. The city became safer because of the lessons learned from this real disaster."
+      ]},
+      { title: "The First Airplane", genre: "History", set: "train", pages: [
+        "On December 17, 1903, two brothers from Ohio did something nobody had ever done before — they flew a powered airplane!",
+        "Wilbur and Orville Wright had spent years studying how birds fly and testing wing designs. They built their plane, called the Flyer, in their bicycle shop.",
+        "At Kitty Hawk, North Carolina, Orville made the first flight. It lasted only 12 seconds and covered 120 feet — shorter than a modern airplane's wingspan!",
+        "That short flight changed the world forever. Within just 66 years, humans went from that 12-second flight to landing on the Moon."
+      ]},
+      { title: "Pompeii and the Volcano", genre: "History", set: "train", pages: [
+        "Almost 2,000 years ago, the Roman city of Pompeii sat near a tall mountain called Mount Vesuvius. The people didn't know it was a volcano.",
+        "In the year 79 AD, Vesuvius erupted with tremendous force. Hot ash and rock rained down on the city, and people ran for their lives.",
+        "The ash buried the entire city under many feet of debris. Pompeii was lost and forgotten for nearly 1,700 years.",
+        "When scientists finally dug it up, they found the city perfectly preserved — food still on tables, art on walls. Pompeii teaches us exactly how people lived in ancient Rome."
+      ]},
+
+      // ═══ HISTORY — TEST ═══
+      { title: "The Titanic", genre: "History", set: "test", pages: [
+        "In 1912, the biggest ship ever built set sail from England to New York. It was called the Titanic, and people said it was unsinkable.",
+        "Over 2,200 passengers were on board, from wealthy families in fancy cabins to immigrants hoping for new lives in America.",
+        "On the night of April 14, the ship struck an iceberg in the Atlantic Ocean. The collision tore a huge gash in the hull below the waterline.",
+        "The ship sank in less than three hours. Over 1,500 people lost their lives. After the disaster, new safety laws required enough lifeboats for everyone on a ship."
+      ]},
+      { title: "Ancient Egypt's Pyramids", genre: "History", set: "test", pages: [
+        "Over 4,500 years ago, the ancient Egyptians built enormous stone pyramids in the desert. The largest, the Great Pyramid, was the tallest building in the world for over 3,800 years.",
+        "Thousands of workers spent about 20 years building each pyramid. They moved huge stone blocks weighing as much as elephants, using ramps and rollers.",
+        "The pyramids were tombs for pharaohs — Egypt's kings. Egyptians believed their rulers would need their treasures in the afterlife, so they filled the pyramids with gold and jewels.",
+        "Today, the pyramids still stand in the desert near Cairo. They are one of the oldest and most famous structures humans have ever built."
+      ]},
+      { title: "The Ice Age", genre: "History", set: "test", pages: [
+        "About 20,000 years ago, much of the Earth was covered in thick sheets of ice. This period is called the Ice Age.",
+        "The ice was so thick in some places — over a mile deep — that it carved out valleys and lakes as it slowly moved across the land.",
+        "Early humans survived by hunting woolly mammoths and other large animals. They made warm clothing from animal skins and lived in caves.",
+        "As the Earth slowly warmed, the ice melted. The Great Lakes in North America were formed by melting glaciers. The Ice Age shaped the world we live in today."
+      ]},
+      { title: "The First Olympics", genre: "History", set: "test", pages: [
+        "The first Olympic Games took place in ancient Greece, in a city called Olympia, nearly 3,000 years ago in 776 BC.",
+        "At first, there was only one event — a foot race about 200 yards long. Over time, they added wrestling, chariot racing, and throwing events.",
+        "During the Games, all wars between Greek cities had to stop. Athletes competed without clothes, and only men were allowed to watch or participate.",
+        "The ancient Olympics continued for over 1,000 years until a Roman emperor ended them. In 1896, the modern Olympic Games were started again in Athens."
+      ]},
+
+      // ═══ FANTASY — TRAIN ═══
+      { title: "The Dragon's Garden", genre: "Fantasy", set: "train", pages: [
+        "Behind the tallest mountain in the land, there was a garden that grew in midair. Flowers floated on clouds, and trees grew upside down with their roots reaching toward the stars.",
+        "A small dragon named Ember was the garden's keeper. Every morning, she breathed gentle warm air onto the cloud-flowers to help them bloom.",
+        "One day, a frost giant wandered too close and the garden began to freeze. The floating flowers turned to ice and started falling from the sky.",
+        "Ember flew in circles faster and faster, breathing her warmest fire. The ice melted into a beautiful rainbow waterfall, and the garden bloomed even brighter than before."
+      ]},
+      { title: "The Talking Fish", genre: "Fantasy", set: "train", pages: [
+        "When Kai dropped his fishing line into the enchanted lake, he didn't expect the fish to talk back. \"Excuse me,\" said a silver fish, \"that hook is quite rude.\"",
+        "Kai was so surprised he nearly fell in. The fish explained that the lake was magical — anyone who entered its waters could speak to all living things.",
+        "\"Would you like to try?\" asked the fish. Kai dipped his hand in, and suddenly he could hear the frogs singing, the dragonflies telling jokes, and the turtles arguing about politics.",
+        "Kai visited the lake every day after that. He never went fishing again — the conversations were much better than any catch."
+      ]},
+      { title: "The Cloud Painter", genre: "Fantasy", set: "train", pages: [
+        "High above the world, an old woman sat on a silver ladder painting clouds with a magic brush. She had been doing this job since before anyone could remember.",
+        "Each morning, she mixed her paints — white from moonbeams, gray from mountain shadows, pink and orange from captured sunsets stored in jars.",
+        "One day, her brush started painting on its own! It made clouds shaped like elephants, castles, and enormous birthday cakes across the entire sky.",
+        "People below looked up and laughed with delight. The old woman smiled and let the brush paint whatever it wanted. Sometimes magic knows best."
+      ]},
+      { title: "The Boy Who Grew Wings", genre: "Fantasy", set: "train", pages: [
+        "On the morning of his tenth birthday, Marco woke up with two small feathery wings growing from his shoulders. They were blue, like a jay's.",
+        "At first he was scared, but his grandmother smiled. \"It runs in the family,\" she said, showing him an old painting of his great-great-grandfather soaring over mountains.",
+        "She took him to the roof and taught him to flap. The first few tries, he just flopped around. But by sunset, he was gliding over the neighborhood.",
+        "\"There are others like us,\" Grandmother whispered, pointing to the sky where, if you looked carefully, you could see tiny figures dancing among the clouds."
+      ]},
+
+      // ═══ FANTASY — TEST ═══
+      { title: "The Invisible Library", genre: "Fantasy", set: "test", pages: [
+        "In the middle of the city was a door that only appeared when it rained. Behind it was the Invisible Library — a place full of books that hadn't been written yet.",
+        "Lila found it on a stormy Tuesday. The books contained stories that would exist in the future — adventures no one had imagined yet.",
+        "The librarian was a cat who wore glasses and spoke in riddles. \"You may read any book,\" she said, \"but you must leave one of your own memories in exchange.\"",
+        "Lila chose carefully. She traded her memory of a boring Tuesday afternoon and read the most wonderful story she'd ever encountered. She could never quite remember what day it was, though."
+      ]},
+      { title: "The Night Market", genre: "Fantasy", set: "test", pages: [
+        "Every full moon, a market appeared in the town square that sold impossible things. Bottled laughter, jars of starlight, seeds that grew into music.",
+        "Ravi bought a small music seed and planted it in his backyard. By morning, a tree had grown that played a different melody with each breeze.",
+        "His neighbor bought bottled courage and became brave enough to finally sing at the talent show. Another person bought a box of lost dreams and found one that fit perfectly.",
+        "By sunrise, the market vanished as if it had never been there. But the music tree kept playing, and the whole neighborhood hummed along."
+      ]},
+      { title: "The Girl Made of Glass", genre: "Fantasy", set: "test", pages: [
+        "In a village of ordinary people, there lived a girl whose skin was made of clear glass. You could see her heart beating, her lungs breathing, her thoughts glowing like tiny fireflies.",
+        "Most people thought she was fragile, but she was actually the strongest person in the village. Glass doesn't feel cold, and her thoughts, being visible, were always honest.",
+        "One winter, a terrible fog covered the land and nobody could see. But the girl's glowing thoughts shone through the darkness like a lantern.",
+        "She led the entire village to safety, her visible heart beating steadily the whole way. After that, nobody ever called her fragile again."
+      ]},
+      { title: "The Upside-Down Mountain", genre: "Fantasy", set: "test", pages: [
+        "In a world where gravity worked differently, there was a mountain that grew downward from the sky. Its peak pointed toward the ground, and its base touched the clouds.",
+        "The people who lived on it walked on the underside, held in place by the mountain's own special gravity. Rain fell upward past their windows.",
+        "A girl named Sol decided to climb to the very tip — the lowest point of the mountain, which was also the highest place she could reach.",
+        "When she got there, she could touch the grass below with her fingertips. She was standing at the top of the world and the bottom of the mountain, all at the same time."
+      ]},
+    ];
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // Shelving sound — satisfying thunk + chime
+        [330, 440, 554, 660].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = i < 2 ? "triangle" : "sine";
+          g.gain.setValueAtTime(0.18, now + i * 0.07);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.07 + 0.25);
+          o.start(now + i * 0.07); o.stop(now + i * 0.07 + 0.3);
+        });
+      };
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.setValueAtTime(280, now);
+        o.frequency.linearRampToValueAtTime(220, now + 0.25);
+        g.gain.setValueAtTime(0.1, now);
+        g.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        o.start(now); o.stop(now + 0.35);
+      };
+      const playNeutral = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 440; o.type = "sine";
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        o.start(now); o.stop(now + 0.25);
+      };
+      const playPageTurn = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // Soft whoosh
+        const noise = ctx.createBufferSource();
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.03;
+        noise.buffer = buf;
+        const g = ctx.createGain();
+        noise.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        noise.start(now);
+      };
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f; o.type = "triangle";
+          g.gain.setValueAtTime(0.16, now + i * 0.1);
+          g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.35);
+        });
+      };
+      return { playCorrect, playWrong, playNeutral, playPageTurn, playComplete };
+    };
+
+    // ── BOOKCASE COMPONENT ──────────────────────────────────
+    const Bookcase = ({ shelvedBooks }) => {
+      // Group by genre
+      const byGenre = {};
+      GENRES.forEach(g => { byGenre[g] = shelvedBooks.filter(b => b.genre === g); });
+
+      return (
+        <div className="bg-amber-900 bg-opacity-90 rounded-2xl p-3 card-shadow border-2 border-amber-800">
+          <div className="text-center text-amber-200 fredoka text-sm mb-2">📚 My Bookcase</div>
+          <div className="space-y-1">
+            {GENRES.map(genre => {
+              const meta = GENRE_META[genre];
+              const books = byGenre[genre];
+              return (
+                <div key={genre} className="flex items-center gap-2">
+                  <span className="text-xs w-16 text-right text-amber-300 nunito font-semibold truncate">{genre}</span>
+                  <div className="flex-1 bg-amber-800 rounded h-6 flex items-end gap-0.5 px-1 min-h-[24px]">
+                    {books.map((book, i) => (
+                      <div key={i} className="h-5 w-3 rounded-sm anim-shelve"
+                        style={{ backgroundColor: meta.color, animationDelay: `${i * 0.1}s` }}
+                        title={book.title} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    // ── STORY READER ────────────────────────────────────────
+    const StoryReader = ({ story, onFinished }) => {
+      const [pageIndex, setPageIndex] = useState(0);
+      const [speaking, setSpeaking] = useState(false);
+      const { playPageTurn } = useSound();
+
+      const speakPage = () => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(story.pages[pageIndex]);
+        utter.rate = 0.85;
+        utter.onstart = () => setSpeaking(true);
+        utter.onend = () => setSpeaking(false);
+        window.speechSynthesis.speak(utter);
+      };
+
+      const nextPage = () => {
+        window.speechSynthesis?.cancel();
+        setSpeaking(false);
+        if (pageIndex + 1 < story.pages.length) {
+          playPageTurn();
+          setPageIndex(p => p + 1);
+        } else {
+          onFinished();
+        }
+      };
+
+      const prevPage = () => {
+        window.speechSynthesis?.cancel();
+        setSpeaking(false);
+        if (pageIndex > 0) { playPageTurn(); setPageIndex(p => p - 1); }
+      };
+
+      const isLastPage = pageIndex === story.pages.length - 1;
+
+      return (
+        <div className="anim-bookopen">
+          <div className="bg-white rounded-2xl card-shadow border-2 border-pink-200 overflow-hidden max-w-lg mx-auto">
+            {/* Book header */}
+            <div className="bg-gradient-to-r from-pink-100 to-purple-100 px-5 py-3 border-b border-pink-200">
+              <h3 className="fredoka text-xl text-pink-900">{story.title}</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs nunito text-pink-600">Page {pageIndex + 1} of {story.pages.length}</span>
+                <button onClick={speakPage}
+                  className={`text-lg hover:scale-110 transition-transform ${speaking ? "animate-pulse" : ""}`}
+                  title="Read aloud">
+                  🔊
+                </button>
+              </div>
+            </div>
+            {/* Story text */}
+            <div className="p-6 min-h-[160px] flex items-center">
+              <p className="story-font text-gray-800 text-base sm:text-lg leading-relaxed anim-slideup" key={pageIndex}>
+                {story.pages[pageIndex]}
+              </p>
+            </div>
+            {/* Navigation */}
+            <div className="flex justify-between items-center px-5 py-3 bg-gray-50 border-t border-pink-100">
+              <button onClick={prevPage} disabled={pageIndex === 0}
+                className={`px-4 py-2 rounded-xl fredoka font-bold transition-all
+                  ${pageIndex === 0 ? "text-gray-300 cursor-not-allowed" : "text-pink-600 hover:bg-pink-100"}`}>
+                ← Back
+              </button>
+              <div className="flex gap-1">
+                {story.pages.map((_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === pageIndex ? "bg-pink-500 w-4" : "bg-pink-200"}`} />
+                ))}
+              </div>
+              <button onClick={nextPage}
+                className="px-4 py-2 rounded-xl fredoka font-bold text-white bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-300 hover:to-pink-500 shadow hover:scale-105 transition-all border border-pink-700">
+                {isLastPage ? "Done! →" : "Next →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ── GENRE BUTTON ────────────────────────────────────────
+    const GenreButton = ({ genre, selected, feedback, isCorrect, disabled, onClick }) => {
+      const meta = GENRE_META[genre];
+      let extraClass = "";
+      if (selected && feedback === "correct") extraClass = "ring-4 ring-green-400 anim-pop";
+      else if (selected && feedback === "wrong") extraClass = "ring-4 ring-red-300 anim-wiggle";
+      else if (!selected && feedback && isCorrect) extraClass = "ring-4 ring-green-300";
+      else if (selected && !feedback) extraClass = "ring-4 ring-pink-400";
+
+      return (
+        <button onClick={() => onClick(genre)} disabled={disabled}
+          className={`rounded-2xl card-shadow px-5 py-3 flex items-center gap-2
+            transition-all duration-200 ${!disabled ? "hover:scale-105 cursor-pointer" : "cursor-default"} ${extraClass}`}
+          style={{ backgroundColor: meta.bg, borderWidth: 3, borderColor: meta.border }}>
+          <span className="text-2xl">{meta.emoji}</span>
+          <span className="fredoka text-lg font-bold" style={{ color: meta.color }}>{genre}</span>
+        </button>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const WhatKindOfStory = () => {
+      const [phase, setPhase] = useState("train"); // "train" | "test"
+      const [storyQueue, setStoryQueue] = useState([]);
+      const [storyIndex, setStoryIndex] = useState(0);
+      const [reading, setReading] = useState(true);
+      const [selectedGenre, setSelectedGenre] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ train: null, test: null });
+      const [shelvedBooks, setShelvedBooks] = useState([]);
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const { playCorrect, playWrong, playNeutral, playComplete } = useSound();
+
+      // Build shuffled story queue
+      useEffect(() => {
+        const trainStories = STORIES.filter(s => s.set === "train");
+        // Interleave genres (not 4 mysteries in a row)
+        const interleaved = [];
+        for (let r = 0; r < TRAIN_STORIES_PER_GENRE; r++) {
+          const batch = GENRES.map(g => trainStories.filter(s => s.genre === g)[r]).filter(Boolean);
+          for (let i = batch.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [batch[i], batch[j]] = [batch[j], batch[i]];
+          }
+          interleaved.push(...batch);
+        }
+        setStoryQueue(interleaved);
+      }, []);
+
+      const currentStory = storyQueue[storyIndex];
+      const totalStories = storyQueue.length;
+
+      const handleFinishedReading = () => setReading(false);
+
+      const handleGenreSelect = (genre) => {
+        if (feedback !== null) return;
+        setSelectedGenre(genre);
+      };
+
+      const handleSubmit = () => {
+        if (!selectedGenre || feedback !== null) return;
+        const isCorrect = selectedGenre === currentStory.genre;
+        const isTest = phase === "test";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTest ? "TEST" : "TRAIN",
+          story_title: currentStory.title,
+          correct_genre: currentStory.genre,
+          selected_genre: selectedGenre,
+          is_correct: isCorrect,
+          response_latency_ms: null, // could add timing
+          confusion_pair: !isCorrect ? `${selectedGenre}↔${currentStory.genre}` : null,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isTest) {
+          playNeutral();
+          setScore(s => s + (isCorrect ? 1 : 0));
+          setShelvedBooks(prev => [...prev, { title: currentStory.title, genre: selectedGenre }]);
+          setFeedback("recorded");
+        } else if (isCorrect) {
+          playCorrect();
+          setScore(s => s + 1);
+          setShelvedBooks(prev => [...prev, { title: currentStory.title, genre: currentStory.genre }]);
+          setFeedback("correct");
+        } else {
+          playWrong();
+          setFeedback("wrong");
+        }
+      };
+
+      const handleNext = () => {
+        if (storyIndex + 1 >= totalStories) {
+          // Phase complete
+          setPhaseScores(prev => ({ ...prev, [phase]: score }));
+          if (phase === "train" && score >= MASTERY_THRESHOLD) {
+            // Advance to test
+            const testStories = STORIES.filter(s => s.set === "test");
+            const interleaved = [];
+            for (let r = 0; r < TEST_STORIES_PER_GENRE; r++) {
+              const batch = GENRES.map(g => testStories.filter(s => s.genre === g)[r]).filter(Boolean);
+              for (let i = batch.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [batch[i], batch[j]] = [batch[j], batch[i]];
+              }
+              interleaved.push(...batch);
+            }
+            setPhase("test");
+            setStoryQueue(interleaved);
+            setStoryIndex(0);
+            setReading(true);
+            setSelectedGenre(null);
+            setFeedback(null);
+            setScore(0);
+            return;
+          }
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              var _train = phase === "train" ? score : (phaseScores.train !== null ? phaseScores.train : (score || 0));
+              var _test = phase === "test" ? score : (phaseScores.test !== null ? phaseScores.test : null);
+              var _mastery = phase === "test" || phaseScores.test !== null;
+              window.FrameShift.saveSession("p7", _train, 16, _test, 16, _mastery);
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        setStoryIndex(i => i + 1);
+        setReading(true);
+        setSelectedGenre(null);
+        setFeedback(null);
+      };
+
+      const handleRestart = () => {
+        const trainStories = STORIES.filter(s => s.set === "train");
+        const interleaved = [];
+        for (let r = 0; r < TRAIN_STORIES_PER_GENRE; r++) {
+          const batch = GENRES.map(g => trainStories.filter(s => s.genre === g)[r]).filter(Boolean);
+          for (let i = batch.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [batch[i], batch[j]] = [batch[j], batch[i]];
+          }
+          interleaved.push(...batch);
+        }
+        setPhase("train"); setStoryQueue(interleaved);
+        setStoryIndex(0); setReading(true); setSelectedGenre(null);
+        setFeedback(null); setScore(0);
+        setPhaseScores({ train: null, test: null });
+        setShelvedBooks([]); setSessionDone(false); setTrialLog([]);
+      };
+
+      // Loading
+      if (storyQueue.length === 0) return (
+        <div className="min-h-screen library flex items-center justify-center">
+          <div className="text-pink-800 text-2xl fredoka">Opening the library...</div>
+        </div>
+      );
+
+      // Session complete
+      if (sessionDone) {
+        const allPhases = phaseScores.test !== null;
+        return (
+          <div className="min-h-screen library p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-8">
+              <div className="bg-white bg-opacity-95 rounded-3xl p-8 card-shadow text-center border-2 border-pink-200">
+                <div className="text-6xl mb-4 anim-float">{allPhases ? "📖" : "📚"}</div>
+                <h2 className="text-3xl fredoka text-pink-800 mb-4">
+                  {allPhases ? "Master Librarian!" : "Good Reading!"}
+                </h2>
+                <div className="space-y-3 mb-4 text-left max-w-xs mx-auto">
+                  {phaseScores.train !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-pink-700 font-semibold">Training</span>
+                      <span className={`font-bold ${phaseScores.train >= MASTERY_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
+                        {phaseScores.train}/{TRAIN_STORIES_PER_GENRE * 4} {phaseScores.train >= MASTERY_THRESHOLD ? "✓" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {phaseScores.test !== null && (
+                    <div className="flex justify-between nunito">
+                      <span className="text-pink-700 font-semibold">Test (novel stories)</span>
+                      <span className="font-bold text-purple-600">
+                        {phaseScores.test}/{TEST_STORIES_PER_GENRE * 4}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="mb-6"><Bookcase shelvedBooks={shelvedBooks} /></div>
+                {allPhases && phaseScores.test >= MASTERY_THRESHOLD && (
+                  <p className="text-pink-600 nunito mb-4">
+                    🎯 Genre abstraction confirmed! You recognized story types you'd never seen before.
+                  </p>
+                )}
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-pink-400 to-pink-600 text-white hover:from-pink-300 hover:to-pink-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-pink-700">
+                  📖 Read Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN SCREEN ───────────────────────────────────────
+      return (
+        <div className="min-h-screen library p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-2">
+              <h1 className="text-3xl sm:text-4xl fredoka text-pink-900 drop-shadow-sm mb-1">
+                📖 What Kind of Story? 📖
+              </h1>
+              <p className="text-pink-700 nunito opacity-60 text-xs">
+                RFT Program 7 · Genre Abstraction
+              </p>
+            </div>
+
+            {/* Phase + progress */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`px-3 py-1 rounded-xl text-sm font-semibold nunito
+                ${phase === "train" ? "bg-pink-500 text-white" : "bg-purple-500 text-white"}`}>
+                {phase === "train" ? "📚 Training" : "🧪 Test"}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-xs nunito text-pink-700 mb-0.5">
+                  <span>Story {storyIndex + 1} of {totalStories}</span>
+                  <span>{score} correct</span>
+                </div>
+                <div className="w-full bg-pink-100 rounded-full h-2 overflow-hidden border border-pink-200">
+                  <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-pink-400 to-purple-400"
+                    style={{ width: `${(storyIndex / totalStories) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Two-column: Story + Bookcase */}
+            <div className="flex gap-4 items-start">
+              {/* Main content */}
+              <div className="flex-1">
+                {reading ? (
+                  <StoryReader story={currentStory} onFinished={handleFinishedReading} />
+                ) : (
+                  <div className="anim-slideup">
+                    {/* Classification prompt */}
+                    <div className="text-center mb-4">
+                      <div className="bg-white bg-opacity-90 rounded-2xl px-6 py-4 card-shadow border-2 border-pink-200 inline-block">
+                        <span className="fredoka text-lg text-pink-800">
+                          {phase === "test" ? "🧪" : "📖"} What kind of story was <em>"{currentStory.title}"</em>?
+                        </span>
+                        {phase === "test" && (
+                          <p className="text-xs text-purple-600 nunito mt-1 opacity-70">Test — no hints</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Genre buttons */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 max-w-md mx-auto">
+                      {GENRES.map(genre => (
+                        <GenreButton key={genre} genre={genre}
+                          selected={selectedGenre === genre}
+                          feedback={phase === "test" ? null : feedback}
+                          isCorrect={genre === currentStory.genre}
+                          disabled={feedback !== null}
+                          onClick={handleGenreSelect} />
+                      ))}
+                    </div>
+
+                    {/* Feedback */}
+                    {feedback && phase === "train" && (
+                      <div className={`text-center mb-3 py-2 px-4 rounded-2xl nunito font-bold mx-auto max-w-md anim-slideup
+                        ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                        {feedback === "correct"
+                          ? [`Shelved! ${GENRE_META[currentStory.genre].emoji}`, "That's the one! 📖", "Perfect genre! ✨"][Math.floor(Math.random()*3)]
+                          : `Not quite — "${currentStory.title}" is ${currentStory.genre}. ${GENRE_META[currentStory.genre].emoji}`}
+                      </div>
+                    )}
+                    {feedback && phase === "test" && (
+                      <div className="text-center mb-3 py-2 px-4 rounded-2xl nunito text-purple-600 max-w-md mx-auto bg-purple-50 border border-purple-200 anim-slideup">
+                        Response recorded. 📚
+                      </div>
+                    )}
+
+                    {/* Action */}
+                    <div className="flex justify-center">
+                      {!feedback ? (
+                        <button onClick={handleSubmit} disabled={!selectedGenre}
+                          className={`px-6 py-3 rounded-2xl font-bold text-lg transition-all fredoka
+                            ${!selectedGenre
+                              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                              : "bg-gradient-to-b from-pink-400 to-pink-600 text-white hover:from-pink-300 hover:to-pink-500 shadow-lg hover:scale-105 border-2 border-pink-700"}`}>
+                          📚 Shelve It!
+                        </button>
+                      ) : (
+                        <button onClick={handleNext}
+                          className="px-6 py-3 rounded-2xl font-bold text-lg bg-gradient-to-b from-purple-400 to-purple-600 text-white hover:from-purple-300 hover:to-purple-500 shadow-lg hover:scale-105 transition-all fredoka border-2 border-purple-700">
+                          {storyIndex + 1 < totalStories ? "📖 Next Story →" : "✨ Finish"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bookcase sidebar */}
+              {shelvedBooks.length > 0 && (
+                <div className="hidden sm:block w-48 flex-shrink-0">
+                  <Bookcase shelvedBooks={shelvedBooks} />
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center mt-6 text-pink-700 opacity-30 text-xs nunito">
+              RFT Program 7 · What Kind of Story? · Syntopic Systems
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<WhatKindOfStory />);
+  </script>
+</body>
+</html>

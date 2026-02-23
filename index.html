@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FrameShift — RFT Game Suite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+    .content { position: relative; z-index: 1; }
+    .card-shadow { box-shadow: 2px 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06); }
+    .glass {
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .glass-dark {
+      background: rgba(30,30,60,0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    @keyframes fadeIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+    @keyframes badgePop { 0%{transform:scale(0)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
+    .anim-fadein { animation: fadeIn 0.4s ease-out both; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-shimmer {
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: shimmer 2s ease-in-out infinite;
+    }
+    .anim-badgepop { animation: badgePop 0.4s ease-out; }
+    .mastery-ring {
+      background: conic-gradient(var(--ring-color) var(--ring-pct), #e5e7eb var(--ring-pct));
+      border-radius: 50%;
+      padding: 3px;
+    }
+    .star-gold { color: #F59E0B; text-shadow: 0 0 6px rgba(245,158,11,0.5); }
+    .star-silver { color: #9CA3AF; text-shadow: 0 0 4px rgba(156,163,175,0.4); }
+    .star-bronze { color: #D97706; text-shadow: 0 0 4px rgba(217,119,6,0.4); }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden">
+  <canvas id="bg-canvas"></canvas>
+  <div id="root" class="content"></div>
+
+  <!-- Dancing Lines Background -->
+  <script>
+    (function() {
+      const canvas = document.getElementById('bg-canvas');
+      const ctx = canvas.getContext('2d');
+      let w, h, t = 0;
+      const lines = [];
+      const LINE_COUNT = 7;
+      const PALETTE = [
+        'rgba(99,102,241,0.12)',   // indigo
+        'rgba(168,85,247,0.10)',   // purple
+        'rgba(236,72,153,0.09)',   // pink
+        'rgba(59,130,246,0.11)',   // blue
+        'rgba(34,197,94,0.08)',    // green
+        'rgba(245,158,11,0.09)',   // amber
+        'rgba(6,182,212,0.10)',    // cyan
+      ];
+
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      // Initialize line parameters
+      for (let i = 0; i < LINE_COUNT; i++) {
+        lines.push({
+          color: PALETTE[i % PALETTE.length],
+          amplitude: 40 + Math.random() * 60,
+          frequency: 0.002 + Math.random() * 0.003,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.003 + Math.random() * 0.004,
+          yBase: (i + 1) / (LINE_COUNT + 1),
+          thickness: 1.5 + Math.random() * 2,
+          waveCount: 1.5 + Math.random() * 1.5,
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, w, h);
+        // Soft gradient background
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, '#F8FAFC');
+        grad.addColorStop(0.5, '#EEF2FF');
+        grad.addColorStop(1, '#F5F3FF');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        for (const line of lines) {
+          ctx.beginPath();
+          ctx.strokeStyle = line.color;
+          ctx.lineWidth = line.thickness;
+          const yCenter = line.yBase * h;
+          for (let x = 0; x <= w; x += 2) {
+            const y = yCenter +
+              Math.sin(x * line.frequency + t * line.speed + line.phase) * line.amplitude +
+              Math.sin(x * line.frequency * 0.5 + t * line.speed * 0.7 + line.phase * 1.3) * line.amplitude * 0.5;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        t++;
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── TRACKER DATA LAYER ──────────────────────────────────
+    const STORAGE_KEY = "frameshift_progress";
+
+    const defaultProgress = () => ({
+      programs: {},
+      achievements: {},
+      totalSessions: 0,
+      streak: { current: 0, best: 0, lastDate: null },
+    });
+
+    const loadProgress = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultProgress();
+        return JSON.parse(raw);
+      } catch { return defaultProgress(); }
+    };
+
+    const saveProgress = (data) => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+    };
+
+    // ── PROGRAM METADATA ────────────────────────────────────
+    const PROGRAMS = [
+      { id: "p1",  num: 1,  title: "More or Less",         subtitle: "Comparative",           emoji: "⚖️",  color: "#22C55E", file: "p1-more-or-less.html",     category: "Translation" },
+      { id: "p2",  num: 2,  title: "Same & Different",     subtitle: "Coordination",          emoji: "🔍",  color: "#F59E0B", file: "p2-same-and-different.html",category: "Translation" },
+      { id: "p3",  num: 3,  title: "Symbol Bridge",        subtitle: "Stimulus Equivalence",  emoji: "🌉",  color: "#8B5CF6", file: "p3-symbol-bridge.html",    category: "Equivalence" },
+      { id: "p4",  num: 4,  title: "Scent Match",          subtitle: "Cross-Modal Olfactory", emoji: "🌸",  color: "#EC4899", file: "p4-scent-match.html",      category: "Equivalence" },
+      { id: "p5",  num: 5,  title: "Taste Test",           subtitle: "Cross-Modal Gustatory", emoji: "🍋",  color: "#F43F5E", file: "p5-taste-test.html",       category: "Equivalence" },
+      { id: "p6",  num: 6,  title: "Common Features",      subtitle: "Analogical Reasoning",  emoji: "🦁",  color: "#16A34A", file: "p6-common-features.html",  category: "Equivalence" },
+      { id: "p7",  num: 7,  title: "What Kind of Story?",  subtitle: "Genre Abstraction",     emoji: "📖",  color: "#DB2777", file: "p7-what-kind-of-story.html",category: "Abstraction" },
+      { id: "p8",  num: 8,  title: "The Why Detective",    subtitle: "Interrogative Frame",   emoji: "🕵️",  color: "#2563EB", file: "p8-why-detective.html",    category: "Abstraction" },
+      { id: "p9",  num: 9,  title: "What Kind?",           subtitle: "Descriptive Frame",     emoji: "🎨",  color: "#CA8A04", file: "p9-what-kind.html",        category: "Abstraction" },
+      { id: "p10", num: 10, title: "What Comes Next?",     subtitle: "Inductive Pattern",     emoji: "🧩",  color: "#4F46E5", file: "p10-what-comes-next.html", category: "Abstraction" },
+    ];
+
+    const CATEGORIES = [
+      { name: "Translation",  color: "#22C55E", range: "1–2",  desc: "Comparative & coordination frames" },
+      { name: "Equivalence",  color: "#8B5CF6", range: "3–6",  desc: "Identity, cross-modal, feature-based" },
+      { name: "Abstraction",  color: "#2563EB", range: "7–10", desc: "Categorical, interrogative, inductive" },
+    ];
+
+    // ── ACHIEVEMENTS ────────────────────────────────────────
+    const ACHIEVEMENTS = [
+      { id: "first_steps",     emoji: "👣", title: "First Steps",       desc: "Complete your first session",           check: (p) => p.totalSessions >= 1 },
+      { id: "explorer",        emoji: "🗺️", title: "Explorer",          desc: "Try all 10 programs",                   check: (p) => Object.keys(p.programs).length >= 10 },
+      { id: "five_streak",     emoji: "🔥", title: "On Fire",           desc: "5-day play streak",                     check: (p) => p.streak.best >= 5 },
+      { id: "ten_sessions",    emoji: "⭐", title: "Dedicated",         desc: "Complete 10 sessions",                  check: (p) => p.totalSessions >= 10 },
+      { id: "mastery_1",       emoji: "🥇", title: "First Mastery",     desc: "Master any program's training phase",   check: (p) => Object.values(p.programs).some(pr => pr.mastery) },
+      { id: "mastery_5",       emoji: "🏆", title: "Five Star",         desc: "Master 5 programs",                     check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 5 },
+      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 10 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
+      { id: "equiv_complete",  emoji: "🔗", title: "Equivalence Pro",   desc: "Master all equivalence programs (3–6)", check: (p) => ["p3","p4","p5","p6"].every(id => p.programs[id]?.mastery) },
+      { id: "abstraction_complete", emoji: "🧠", title: "Abstract Thinker", desc: "Master all abstraction programs (7–10)", check: (p) => ["p7","p8","p9","p10"].every(id => p.programs[id]?.mastery) },
+      { id: "twenty_five",     emoji: "💎", title: "Quarter Century",   desc: "Complete 25 sessions",                  check: (p) => p.totalSessions >= 25 },
+    ];
+
+    // ── MASTERY RING ────────────────────────────────────────
+    const MasteryRing = ({ pct, color, children, size = 48 }) => (
+      <div className="mastery-ring" style={{ '--ring-color': color, '--ring-pct': `${pct}%`, width: size, height: size }}>
+        <div className="bg-white rounded-full w-full h-full flex items-center justify-center">
+          {children}
+        </div>
+      </div>
+    );
+
+    // ── STAR RATING ─────────────────────────────────────────
+    const Stars = ({ count }) => (
+      <div className="flex gap-0.5">
+        {[0,1,2].map(i => (
+          <span key={i} className={`text-sm ${i < count ? (count >= 3 ? "star-gold" : count >= 2 ? "star-silver" : "star-bronze") : "text-gray-300"}`}>★</span>
+        ))}
+      </div>
+    );
+
+    // ── PROGRAM CARD ────────────────────────────────────────
+    const ProgramCard = ({ program, progress, index }) => {
+      const progData = progress.programs[program.id];
+      const sessions = progData?.sessions?.length || 0;
+      const mastery = progData?.mastery || false;
+      const bestTrain = progData?.bestScore?.train || 0;
+      const bestTest = progData?.bestScore?.test;
+      const hasTest = bestTest !== undefined && bestTest !== null;
+      const stars = mastery ? 3 : hasTest ? 2 : sessions > 0 ? 1 : 0;
+
+      // Mastery percentage (rough: train score / max possible)
+      const pct = mastery ? 100 : sessions > 0 ? Math.min(90, Math.round((bestTrain / 10) * 90)) : 0;
+
+      return (
+        <a href={program.file}
+          className="anim-fadein block rounded-2xl glass card-shadow border border-white border-opacity-60 p-4 hover:scale-[1.03] transition-all duration-200 group relative overflow-hidden"
+          style={{ animationDelay: `${index * 0.05}s` }}>
+          {/* Mastery glow */}
+          {mastery && <div className="absolute inset-0 anim-shimmer rounded-2xl pointer-events-none" />}
+
+          <div className="flex items-start gap-3">
+            <MasteryRing pct={pct} color={program.color} size={48}>
+              <span className="text-lg">{program.emoji}</span>
+            </MasteryRing>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="fredoka text-sm font-bold text-gray-400">P{program.num}</span>
+                <Stars count={stars} />
+              </div>
+              <h3 className="fredoka text-base font-bold text-gray-800 truncate group-hover:text-indigo-700 transition-colors">
+                {program.title}
+              </h3>
+              <p className="nunito text-xs text-gray-500">{program.subtitle}</p>
+              {sessions > 0 && (
+                <div className="flex gap-2 mt-1">
+                  <span className="text-xs nunito px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                    {sessions} session{sessions !== 1 ? "s" : ""}
+                  </span>
+                  {mastery && (
+                    <span className="text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">
+                      ✓ Mastered
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </a>
+      );
+    };
+
+    // ── ACHIEVEMENT BADGE ───────────────────────────────────
+    const AchievementBadge = ({ achievement, earned }) => (
+      <div className={`flex items-center gap-3 p-3 rounded-xl transition-all
+        ${earned ? "glass card-shadow border border-white border-opacity-60" : "bg-gray-100 bg-opacity-50 border border-gray-200 opacity-50"}`}>
+        <span className={`text-2xl ${earned ? "anim-badgepop" : "grayscale opacity-40"}`}>
+          {achievement.emoji}
+        </span>
+        <div className="flex-1 min-w-0">
+          <h4 className={`fredoka text-sm font-bold ${earned ? "text-gray-800" : "text-gray-400"}`}>
+            {achievement.title}
+          </h4>
+          <p className={`nunito text-xs ${earned ? "text-gray-600" : "text-gray-400"}`}>
+            {achievement.desc}
+          </p>
+        </div>
+        {earned && <span className="text-green-500 text-sm">✓</span>}
+      </div>
+    );
+
+    // ── OVERVIEW STATS ──────────────────────────────────────
+    const OverviewStats = ({ progress }) => {
+      const totalSessions = progress.totalSessions;
+      const programsTried = Object.keys(progress.programs).length;
+      const programsMastered = Object.values(progress.programs).filter(p => p.mastery).length;
+      const streak = progress.streak.current;
+      const achievementsEarned = ACHIEVEMENTS.filter(a => a.check(progress)).length;
+
+      const stats = [
+        { label: "Sessions", value: totalSessions, emoji: "📊" },
+        { label: "Programs Tried", value: `${programsTried}/10`, emoji: "🎮" },
+        { label: "Mastered", value: `${programsMastered}/10`, emoji: "⭐" },
+        { label: "Day Streak", value: streak, emoji: "🔥" },
+        { label: "Achievements", value: `${achievementsEarned}/${ACHIEVEMENTS.length}`, emoji: "🏅" },
+      ];
+
+      return (
+        <div className="grid grid-cols-5 gap-2 sm:gap-3">
+          {stats.map((stat, i) => (
+            <div key={i} className="glass rounded-xl p-3 card-shadow border border-white border-opacity-60 text-center anim-fadein"
+              style={{ animationDelay: `${i * 0.06}s` }}>
+              <div className="text-xl mb-0.5">{stat.emoji}</div>
+              <div className="fredoka text-lg sm:text-xl font-bold text-gray-800">{stat.value}</div>
+              <div className="nunito text-[10px] sm:text-xs text-gray-500">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    // ── CATEGORY TABS + PROGRESS BAR ────────────────────────
+    const CategoryProgress = ({ progress }) => {
+      return (
+        <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
+          {CATEGORIES.map(cat => {
+            const progs = PROGRAMS.filter(p => p.category === cat.name);
+            const mastered = progs.filter(p => progress.programs[p.id]?.mastery).length;
+            const pct = Math.round((mastered / progs.length) * 100);
+            return (
+              <div key={cat.name} className="glass rounded-xl px-4 py-2 card-shadow border border-white border-opacity-60 min-w-[140px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  <span className="fredoka text-sm text-gray-700 font-bold">{cat.name}</span>
+                  <span className="nunito text-xs text-gray-400 ml-auto">P{cat.range}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${pct}%`, backgroundColor: cat.color }} />
+                </div>
+                <div className="nunito text-xs text-gray-500 mt-0.5">{mastered}/{progs.length} mastered</div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // ── MAIN APP ────────────────────────────────────────────
+    const FrameShiftHub = () => {
+      const [progress, setProgress] = useState(defaultProgress());
+      const [tab, setTab] = useState("games"); // "games" | "achievements" | "tracker"
+      const [showReset, setShowReset] = useState(false);
+
+      useEffect(() => {
+        setProgress(loadProgress());
+        // Listen for storage events (when games save data)
+        const handler = () => setProgress(loadProgress());
+        window.addEventListener('storage', handler);
+        window.addEventListener('focus', handler); // reload on tab focus
+        return () => {
+          window.removeEventListener('storage', handler);
+          window.removeEventListener('focus', handler);
+        };
+      }, []);
+
+      const handleReset = () => {
+        localStorage.removeItem(STORAGE_KEY);
+        setProgress(defaultProgress());
+        setShowReset(false);
+      };
+
+      const earnedAchievements = ACHIEVEMENTS.filter(a => a.check(progress));
+      const unearnedAchievements = ACHIEVEMENTS.filter(a => !a.check(progress));
+
+      return (
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+          <div className="max-w-4xl mx-auto">
+
+            {/* ── HEADER ────────────────────────────────── */}
+            <header className="text-center mb-6 anim-fadein">
+              <div className="inline-block mb-2">
+                <h1 className="fredoka text-5xl sm:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500">
+                  FrameShift
+                </h1>
+              </div>
+              <p className="nunito text-gray-500 text-sm sm:text-base max-w-lg mx-auto">
+                Relational Frame Training Suite — 10 programs building language and reasoning through play
+              </p>
+              <p className="nunito text-xs text-gray-400 mt-1">Syntopic Systems</p>
+            </header>
+
+            {/* ── OVERVIEW STATS ─────────────────────────── */}
+            <div className="mb-5">
+              <OverviewStats progress={progress} />
+            </div>
+
+            {/* ── CATEGORY PROGRESS ──────────────────────── */}
+            <div className="mb-5">
+              <CategoryProgress progress={progress} />
+            </div>
+
+            {/* ── TABS ───────────────────────────────────── */}
+            <div className="flex gap-2 justify-center mb-5">
+              {[
+                { key: "games", label: "🎮 Programs", count: null },
+                { key: "achievements", label: "🏅 Achievements", count: earnedAchievements.length },
+                { key: "tracker", label: "📊 Session Log", count: progress.totalSessions },
+              ].map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`px-4 py-2 rounded-xl fredoka text-sm font-bold transition-all
+                    ${tab === t.key
+                      ? "glass card-shadow text-indigo-700 border border-indigo-200"
+                      : "text-gray-400 hover:text-gray-600 hover:bg-white hover:bg-opacity-40"}`}>
+                  {t.label}
+                  {t.count !== null && t.count > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">{t.count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* ── GAMES GRID ─────────────────────────────── */}
+            {tab === "games" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {PROGRAMS.map((prog, i) => (
+                  <ProgramCard key={prog.id} program={prog} progress={progress} index={i} />
+                ))}
+              </div>
+            )}
+
+            {/* ── ACHIEVEMENTS ────────────────────────────── */}
+            {tab === "achievements" && (
+              <div>
+                {earnedAchievements.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="fredoka text-lg text-gray-700 mb-2">🏅 Earned</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {earnedAchievements.map(a => (
+                        <AchievementBadge key={a.id} achievement={a} earned={true} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <h3 className="fredoka text-lg text-gray-400 mb-2">🔒 Locked</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {unearnedAchievements.map(a => (
+                      <AchievementBadge key={a.id} achievement={a} earned={false} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── SESSION LOG / TRACKER ───────────────────── */}
+            {tab === "tracker" && (
+              <div className="glass rounded-2xl p-5 card-shadow border border-white border-opacity-60">
+                <h3 className="fredoka text-lg text-gray-700 mb-3">📊 Session History</h3>
+                {Object.keys(progress.programs).length === 0 ? (
+                  <p className="nunito text-gray-400 text-center py-8">
+                    No sessions yet. Launch a program to begin!
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {PROGRAMS.map(prog => {
+                      const pd = progress.programs[prog.id];
+                      if (!pd || !pd.sessions || pd.sessions.length === 0) return null;
+                      return (
+                        <div key={prog.id} className="bg-white bg-opacity-60 rounded-xl p-3 border border-gray-100">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">{prog.emoji}</span>
+                            <span className="fredoka text-sm font-bold text-gray-700">P{prog.num}: {prog.title}</span>
+                            {pd.mastery && <span className="text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">Mastered</span>}
+                          </div>
+                          <div className="space-y-1">
+                            {pd.sessions.slice(-5).reverse().map((session, i) => (
+                              <div key={i} className="flex justify-between items-center nunito text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">
+                                <span>{new Date(session.date).toLocaleDateString()} {new Date(session.date).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+                                <div className="flex gap-3">
+                                  {session.trainScore !== undefined && (
+                                    <span>Train: <strong className={session.trainScore >= session.trainMax * 0.8 ? "text-green-600" : "text-amber-600"}>
+                                      {session.trainScore}/{session.trainMax}
+                                    </strong></span>
+                                  )}
+                                  {session.testScore !== undefined && (
+                                    <span>Test: <strong className="text-purple-600">
+                                      {session.testScore}/{session.testMax}
+                                    </strong></span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {pd.sessions.length > 5 && (
+                              <p className="text-xs text-gray-400 nunito text-center">
+                                + {pd.sessions.length - 5} earlier session{pd.sessions.length - 5 !== 1 ? "s" : ""}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── FOOTER ─────────────────────────────────── */}
+            <footer className="mt-8 text-center">
+              <div className="nunito text-xs text-gray-400 space-x-4">
+                <span>FrameShift RFT Suite v1.0</span>
+                <span>·</span>
+                <span>Syntopic Systems</span>
+                <span>·</span>
+                <button onClick={() => setShowReset(true)} className="text-gray-400 hover:text-red-400 transition-colors underline">
+                  Reset Progress
+                </button>
+              </div>
+              {showReset && (
+                <div className="mt-3 glass rounded-xl p-4 inline-block card-shadow border border-red-200 anim-fadein">
+                  <p className="nunito text-sm text-gray-700 mb-2">⚠️ This will erase all progress and achievements. Are you sure?</p>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={handleReset}
+                      className="px-4 py-1.5 rounded-lg bg-red-500 text-white fredoka text-sm hover:bg-red-600 transition-colors">
+                      Yes, Reset
+                    </button>
+                    <button onClick={() => setShowReset(false)}
+                      className="px-4 py-1.5 rounded-lg bg-gray-200 text-gray-700 fredoka text-sm hover:bg-gray-300 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </footer>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<FrameShiftHub />);
+  </script>
+</body>
+</html>

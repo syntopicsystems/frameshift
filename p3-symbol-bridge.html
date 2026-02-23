@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Symbol Bridge — RFT Program 3</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    @keyframes wiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-5deg)} 75%{transform:rotate(5deg)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes glow { 0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.3)} 50%{box-shadow:0 0 20px rgba(99,102,241,0.6)} }
+    @keyframes connectLine { 0%{stroke-dashoffset:200} 100%{stroke-dashoffset:0} }
+    @keyframes slideUp { 0%{opacity:0;transform:translateY(16px)} 100%{opacity:1;transform:translateY(0)} }
+    @keyframes sparkle { 0%{opacity:0;transform:scale(0)} 50%{opacity:1;transform:scale(1.2)} 100%{opacity:0;transform:scale(0)} }
+    .anim-pop { animation: pop 0.3s ease-in-out; }
+    .anim-wiggle { animation: wiggle 0.4s ease-in-out; }
+    .anim-float { animation: float 3s ease-in-out infinite; }
+    .anim-glow { animation: glow 2s ease-in-out infinite; }
+    .anim-slideup { animation: slideUp 0.3s ease-out; }
+    .fredoka { font-family: 'Fredoka', sans-serif; }
+    .nunito { font-family: 'Nunito', sans-serif; }
+    .workspace {
+      background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 50%, #EEF2FF 100%);
+    }
+    .card-shadow { box-shadow: 2px 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06); }
+  
+    .frameshift-back {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+      padding: 6px 14px; font-family: 'Fredoka', sans-serif;
+      font-size: 13px; font-weight: 600; color: #6366F1;
+      text-decoration: none; transition: all 0.2s;
+      box-shadow: 1px 2px 6px rgba(0,0,0,0.08);
+    }
+    .frameshift-back:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); color: #4F46E5; }
+  </style>
+
+  <!-- FrameShift Tracker Integration -->
+  <script>
+    window.FrameShift = {
+      STORAGE_KEY: "frameshift_progress",
+      load: function() {
+        try {
+          var raw = localStorage.getItem(this.STORAGE_KEY);
+          return raw ? JSON.parse(raw) : { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } };
+        } catch(e) { return { programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } }; }
+      },
+      save: function(data) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      },
+      saveSession: function(programId, trainScore, trainMax, testScore, testMax, mastery) {
+        var data = this.load();
+        if (!data.programs[programId]) {
+          data.programs[programId] = { sessions: [], bestScore: { train: 0, test: null }, mastery: false, lastPlayed: null };
+        }
+        var prog = data.programs[programId];
+        var session = { date: new Date().toISOString(), trainScore: trainScore, trainMax: trainMax };
+        if (testScore !== undefined && testScore !== null) {
+          session.testScore = testScore;
+          session.testMax = testMax;
+        }
+        prog.sessions.push(session);
+        prog.lastPlayed = new Date().toISOString();
+        if (trainScore > prog.bestScore.train) prog.bestScore.train = trainScore;
+        if (testScore !== undefined && testScore !== null && (prog.bestScore.test === null || testScore > prog.bestScore.test)) {
+          prog.bestScore.test = testScore;
+        }
+        if (mastery) prog.mastery = true;
+        data.totalSessions++;
+        // Streak tracking
+        var today = new Date().toISOString().split('T')[0];
+        if (data.streak.lastDate) {
+          var last = new Date(data.streak.lastDate);
+          var diff = Math.floor((new Date(today) - last) / 86400000);
+          if (diff === 1) { data.streak.current++; }
+          else if (diff > 1) { data.streak.current = 1; }
+        } else { data.streak.current = 1; }
+        data.streak.lastDate = today;
+        if (data.streak.current > data.streak.best) data.streak.best = data.streak.current;
+        this.save(data);
+        return data;
+      }
+    };
+  </script>
+
+</head>
+<body>
+  <a href="index.html" class="frameshift-back">← FrameShift</a>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── CONFIG ──────────────────────────────────────────────
+    const TRIALS_PER_PHASE = 9;   // 3 classes × 3 reps
+    const MASTERY_THRESHOLD = 8;
+    const PHASES = {
+      AB: { label: "Word → Symbol", relation: "A-B", prompt: (w) => `Find the symbol for "${w}"` },
+      BC: { label: "Symbol → Item",  relation: "B-C", prompt: () => "Find the matching item" },
+      AC: { label: "Word → Item (Test)", relation: "A-C", prompt: (w) => `Find the item for "${w}"` },
+    };
+
+    // ── ARBITRARY SYMBOLS (inline SVG) ──────────────────────
+    // These MUST be meaningless — no cultural associations
+    const SymbolSVG = ({ id, size = 70 }) => {
+      const s = size;
+      // Three truly arbitrary symbols
+      if (id === "sym1") return (
+        <svg width={s} height={s} viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="28" fill="none" stroke="#6366F1" strokeWidth="4"/>
+          <path d="M20,25 Q35,10 50,25" fill="none" stroke="#6366F1" strokeWidth="3.5" strokeLinecap="round"/>
+          <line x1="35" y1="30" x2="35" y2="55" stroke="#6366F1" strokeWidth="3.5" strokeLinecap="round"/>
+          <circle cx="25" cy="45" r="4" fill="#6366F1"/>
+          <circle cx="45" cy="45" r="4" fill="#6366F1"/>
+        </svg>
+      );
+      if (id === "sym2") return (
+        <svg width={s} height={s} viewBox="0 0 70 70">
+          <rect x="12" y="12" width="46" height="46" rx="6" fill="none" stroke="#EC4899" strokeWidth="4"/>
+          <path d="M20,35 L35,18 L50,35 L35,52 Z" fill="none" stroke="#EC4899" strokeWidth="3" strokeLinejoin="round"/>
+          <line x1="28" y1="28" x2="42" y2="42" stroke="#EC4899" strokeWidth="3" strokeLinecap="round"/>
+          <line x1="42" y1="28" x2="28" y2="42" stroke="#EC4899" strokeWidth="3" strokeLinecap="round"/>
+        </svg>
+      );
+      // sym3
+      return (
+        <svg width={s} height={s} viewBox="0 0 70 70">
+          <path d="M15,50 Q15,15 35,15 Q55,15 55,50" fill="none" stroke="#F59E0B" strokeWidth="4" strokeLinecap="round"/>
+          <circle cx="35" cy="50" r="6" fill="#F59E0B"/>
+          <line x1="22" y1="35" x2="48" y2="35" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round"/>
+          <path d="M25,22 L30,28 M45,22 L40,28" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round"/>
+        </svg>
+      );
+    };
+
+    // ── ITEM IMAGES (OpenMoji) ───────────────────────────────
+    const emojiURL = (code) => `https://openmoji.org/data/color/svg/${code}.svg`;
+
+    // ── EQUIVALENCE CLASSES ─────────────────────────────────
+    // Class 1: Strong → sym1 → Blocks
+    // Class 2: Pretty → sym2 → Flowers
+    // Class 3: Fancy  → sym3 → Coins
+    const CLASSES = [
+      {
+        id: 1,
+        word: { label: "Strong", display: "Strong" },
+        symbol: { id: "sym1", color: "#6366F1" },
+        item: { label: "Blocks", emoji: "1F9F1" }, // brick/blocks
+      },
+      {
+        id: 2,
+        word: { label: "Pretty", display: "Pretty" },
+        symbol: { id: "sym2", color: "#EC4899" },
+        item: { label: "Flowers", emoji: "1F490" }, // bouquet
+      },
+      {
+        id: 3,
+        word: { label: "Fancy", display: "Fancy" },
+        symbol: { id: "sym3", color: "#F59E0B" },
+        item: { label: "Coins", emoji: "1FA99" }, // coin
+      },
+    ];
+
+    // ── SOUNDS ──────────────────────────────────────────────
+    const useSound = () => {
+      const ctxRef = useRef(null);
+      const getCtx = () => {
+        if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        return ctxRef.current;
+      };
+
+      const playCorrect = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        // Magical connection chime
+        [523, 659, 784, 1047].forEach((freq, i) => {
+          const osc = ctx.createOscillator(), gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.value = freq; osc.type = "sine";
+          gain.gain.setValueAtTime(0.18, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.3);
+          osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.35);
+        });
+      };
+
+      const playWrong = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.linearRampToValueAtTime(220, now + 0.25);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now); osc.stop(now + 0.4);
+      };
+
+      const playComplete = () => {
+        const ctx = getCtx(), now = ctx.currentTime;
+        [523, 587, 659, 784, 1047].forEach((freq, i) => {
+          const osc = ctx.createOscillator(), gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.value = freq; osc.type = "triangle";
+          gain.gain.setValueAtTime(0.18, now + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.35);
+          osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.4);
+        });
+      };
+
+      return { playCorrect, playWrong, playComplete };
+    };
+
+    // ── TRIAL GENERATOR ─────────────────────────────────────
+    const generateTrials = (phase, count) => {
+      const trials = [];
+      // Create balanced set: each class appears equally
+      const reps = Math.ceil(count / CLASSES.length);
+      const pool = [];
+      for (let r = 0; r < reps; r++) {
+        CLASSES.forEach(cls => pool.push(cls));
+      }
+      // Shuffle
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      pool.slice(0, count).forEach(targetClass => {
+        // Build the choice array (all 3 options, shuffled)
+        const options = [...CLASSES].sort(() => Math.random() - 0.5);
+        const correctIndex = options.findIndex(c => c.id === targetClass.id);
+
+        if (phase === "AB") {
+          // Show word, pick from symbols
+          trials.push({
+            stimulus: { type: "word", content: targetClass.word },
+            options: options.map(c => ({ type: "symbol", content: c.symbol, classId: c.id })),
+            correctIndex,
+            targetClass,
+          });
+        } else if (phase === "BC") {
+          // Show symbol, pick from items
+          trials.push({
+            stimulus: { type: "symbol", content: targetClass.symbol },
+            options: options.map(c => ({ type: "item", content: c.item, classId: c.id })),
+            correctIndex,
+            targetClass,
+          });
+        } else {
+          // AC test: show word, pick from items
+          trials.push({
+            stimulus: { type: "word", content: targetClass.word },
+            options: options.map(c => ({ type: "item", content: c.item, classId: c.id })),
+            correctIndex,
+            targetClass,
+          });
+        }
+      });
+      return trials;
+    };
+
+    // ── STIMULUS DISPLAY ────────────────────────────────────
+    const StimulusDisplay = ({ stimulus }) => {
+      if (stimulus.type === "word") {
+        return (
+          <div className="fredoka text-4xl sm:text-5xl font-bold text-indigo-800">
+            "{stimulus.content.display}"
+          </div>
+        );
+      }
+      // symbol
+      return <SymbolSVG id={stimulus.content.id} size={80} />;
+    };
+
+    // ── OPTION CARD ─────────────────────────────────────────
+    const OptionCard = ({ option, index, selected, feedback, isCorrect, disabled, onClick }) => {
+      let border = "border-indigo-100";
+      let bg = "bg-white";
+      let anim = "";
+
+      if (selected && feedback === "correct") {
+        border = "border-green-400"; bg = "bg-green-50"; anim = "anim-pop";
+      } else if (selected && feedback === "wrong") {
+        border = "border-red-300"; bg = "bg-red-50"; anim = "anim-wiggle";
+      } else if (!selected && feedback && isCorrect) {
+        border = "border-green-300"; bg = "bg-green-50";
+      } else if (selected && !feedback) {
+        border = "border-indigo-400"; bg = "bg-indigo-50";
+      }
+
+      return (
+        <button onClick={() => onClick(index)} disabled={disabled}
+          className={`rounded-2xl border-3 ${border} ${bg} card-shadow p-4 sm:p-5
+            transition-all duration-200 ${!disabled ? "hover:scale-105 hover:shadow-lg cursor-pointer" : "cursor-default"}
+            flex flex-col items-center gap-2 min-w-[100px] sm:min-w-[120px] relative`}
+          style={{ borderWidth: 3 }}
+        >
+          <div className={anim} onAnimationEnd={e => e.currentTarget.className = ""}>
+            {option.type === "symbol"
+              ? <SymbolSVG id={option.content.id} size={64} />
+              : <img src={emojiURL(option.content.emoji)} alt={option.content.label}
+                  width="64" height="64" style={{ width: 64, height: 64 }} draggable={false} />
+            }
+          </div>
+          {option.type === "item" && (
+            <span className="nunito text-sm text-gray-600 font-semibold">{option.content.label}</span>
+          )}
+          {feedback && isCorrect && (
+            <span className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✓</span>
+          )}
+          {selected && feedback === "wrong" && (
+            <span className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow">✗</span>
+          )}
+        </button>
+      );
+    };
+
+    // ── PHASE TAB ───────────────────────────────────────────
+    const PhaseTab = ({ phase, currentPhase, phaseDone }) => {
+      const active = phase === currentPhase;
+      const done = phaseDone;
+      return (
+        <div className={`px-4 py-2 rounded-xl text-sm font-semibold nunito transition-all
+          ${active ? "bg-indigo-500 text-white shadow-md" :
+            done ? "bg-green-100 text-green-700 border border-green-300" :
+            "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+          {done && "✓ "}{PHASES[phase].label}
+        </div>
+      );
+    };
+
+    // ── MAIN GAME ───────────────────────────────────────────
+    const SymbolBridge = () => {
+      const [currentPhase, setCurrentPhase] = useState("AB");
+      const [trials, setTrials] = useState([]);
+      const [trialIndex, setTrialIndex] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const [feedback, setFeedback] = useState(null);
+      const [score, setScore] = useState(0);
+      const [phaseScores, setPhaseScores] = useState({ AB: null, BC: null, AC: null });
+      const [sessionDone, setSessionDone] = useState(false);
+      const [trialLog, setTrialLog] = useState([]);
+      const { playCorrect, playWrong, playComplete } = useSound();
+
+      useEffect(() => {
+        setTrials(generateTrials(currentPhase, TRIALS_PER_PHASE));
+      }, [currentPhase]);
+
+      const handleSelect = (index) => {
+        if (feedback !== null) return;
+        setSelected(index);
+      };
+
+      const handleSubmit = () => {
+        if (selected === null || feedback !== null) return;
+        const trial = trials[trialIndex];
+        const isCorrect = selected === trial.correctIndex;
+        const isTestPhase = currentPhase === "AC";
+
+        setTrialLog(prev => [...prev, {
+          trial_number: trialLog.length + 1,
+          phase: isTestPhase ? "TEST" : "TRAIN",
+          relation_type: PHASES[currentPhase].relation,
+          stimulus: trial.stimulus.type === "word" ? trial.stimulus.content.label : trial.stimulus.content.id,
+          participant_response: trial.options[selected].content.label || trial.options[selected].content.id,
+          correct_response: trial.options[trial.correctIndex].content.label || trial.options[trial.correctIndex].content.id,
+          is_correct: isCorrect,
+          equivalence_class: trial.targetClass.id,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (isCorrect) {
+          playCorrect();
+          setScore(s => s + 1);
+          setFeedback("correct");
+        } else {
+          playWrong();
+          setFeedback("wrong");
+        }
+      };
+
+      const handleNext = () => {
+        if (trialIndex + 1 >= TRIALS_PER_PHASE) {
+          // Phase complete
+          const finalScore = score + (feedback === "correct" ? 0 : 0); // score already updated
+          setPhaseScores(prev => ({ ...prev, [currentPhase]: score }));
+
+          if (currentPhase === "AB" && score >= MASTERY_THRESHOLD - 1) {
+            // Advance to BC
+            setCurrentPhase("BC");
+            setTrialIndex(0);
+            setSelected(null);
+            setFeedback(null);
+            setScore(0);
+            return;
+          } else if (currentPhase === "BC" && score >= MASTERY_THRESHOLD - 1) {
+            // Advance to AC test
+            setCurrentPhase("AC");
+            setTrialIndex(0);
+            setSelected(null);
+            setFeedback(null);
+            setScore(0);
+            return;
+          }
+          // Session ends (either didn't master, or finished AC)
+          
+            // ── FrameShift Tracker Save ──
+            if (window.FrameShift) {
+              window.FrameShift.saveSession(
+                "p3",
+                phaseScores.BC !== null ? phaseScores.BC : (score || 0),
+                9,
+                phaseScores.AC !== null ? phaseScores.AC : null,
+                9,
+                phaseScores.AC !== null
+              );
+            }
+            setSessionDone(true);
+          setTimeout(playComplete, 200);
+          return;
+        }
+        setTrialIndex(i => i + 1);
+        setSelected(null);
+        setFeedback(null);
+      };
+
+      const handleRestart = () => {
+        setCurrentPhase("AB");
+        setTrials(generateTrials("AB", TRIALS_PER_PHASE));
+        setTrialIndex(0);
+        setSelected(null);
+        setFeedback(null);
+        setScore(0);
+        setPhaseScores({ AB: null, BC: null, AC: null });
+        setSessionDone(false);
+        setTrialLog([]);
+      };
+
+      if (trials.length === 0) return (
+        <div className="min-h-screen workspace flex items-center justify-center">
+          <div className="text-indigo-800 text-2xl fredoka">Building the bridge...</div>
+        </div>
+      );
+
+      // ── SESSION COMPLETE ──────────────────────────────────
+      if (sessionDone) {
+        const allPhases = phaseScores.AC !== null;
+        return (
+          <div className="min-h-screen workspace p-4 sm:p-8">
+            <div className="max-w-lg mx-auto mt-12">
+              <div className="bg-white rounded-3xl p-8 sm:p-12 card-shadow text-center border-2 border-indigo-200">
+                <div className="text-6xl mb-4 anim-float">
+                  {allPhases ? "🌉" : "🔗"}
+                </div>
+                <h2 className="text-4xl fredoka text-indigo-800 mb-4">
+                  {allPhases ? "Bridge Complete!" : "Good Progress!"}
+                </h2>
+
+                {/* Phase results */}
+                <div className="space-y-3 mb-6 text-left max-w-xs mx-auto">
+                  {Object.entries(phaseScores).map(([phase, sc]) => (
+                    sc !== null && (
+                      <div key={phase} className="flex items-center justify-between nunito">
+                        <span className="text-indigo-700 font-semibold">{PHASES[phase].label}</span>
+                        <span className={`font-bold ${sc >= MASTERY_THRESHOLD - 1 ? "text-green-600" : "text-amber-600"}`}>
+                          {sc}/{TRIALS_PER_PHASE} {sc >= MASTERY_THRESHOLD - 1 ? "✓" : ""}
+                        </span>
+                      </div>
+                    )
+                  ))}
+                </div>
+
+                {allPhases && phaseScores.AC >= MASTERY_THRESHOLD - 1 && (
+                  <p className="text-indigo-600 nunito mb-6">
+                    🎯 Transitive equivalence emerged! A=B and B=C → A=C confirmed.
+                  </p>
+                )}
+
+                <button onClick={handleRestart}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-indigo-400 to-indigo-600 text-white hover:from-indigo-300 hover:to-indigo-500 shadow-lg hover:scale-105 transition-all duration-200 fredoka border-2 border-indigo-700">
+                  🔗 Play Again
+                </button>
+                <div style={{marginTop: "12px"}}>
+                  <a href="index.html" className="inline-block px-6 py-2 rounded-xl nunito text-sm font-semibold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-all border border-indigo-200">
+                    ← Back to FrameShift
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN TRIAL SCREEN ─────────────────────────────────
+      const trial = trials[trialIndex];
+      const isTestPhase = currentPhase === "AC";
+      const promptText = trial.stimulus.type === "word"
+        ? PHASES[currentPhase].prompt(trial.stimulus.content.display)
+        : PHASES[currentPhase].prompt();
+
+      return (
+        <div className="min-h-screen workspace p-4 sm:p-8">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <h1 className="text-4xl sm:text-5xl fredoka text-indigo-900 drop-shadow-sm mb-1 anim-float">
+                🔗 Symbol Bridge 🔗
+              </h1>
+              <p className="text-indigo-600 nunito opacity-60 text-sm">
+                RFT Program 3 · Stimulus Equivalence
+              </p>
+            </div>
+
+            {/* Phase tabs */}
+            <div className="flex gap-2 justify-center mb-4 flex-wrap">
+              {["AB", "BC", "AC"].map(p => (
+                <PhaseTab key={p} phase={p} currentPhase={currentPhase} phaseDone={phaseScores[p] !== null} />
+              ))}
+            </div>
+
+            {/* Progress */}
+            <div className="flex justify-between text-sm nunito text-indigo-700 mb-1 px-1">
+              <span>Trial {trialIndex + 1} of {TRIALS_PER_PHASE}</span>
+              <span>{score} correct</span>
+            </div>
+            <div className="w-full bg-indigo-100 rounded-full h-3 mb-6 overflow-hidden border border-indigo-200">
+              <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-indigo-400 to-violet-400"
+                style={{ width: `${(trialIndex / TRIALS_PER_PHASE) * 100}%` }} />
+            </div>
+
+            {/* Stimulus */}
+            <div className="text-center mb-4 anim-slideup">
+              <div className="inline-flex flex-col items-center gap-2 bg-white rounded-2xl px-8 py-5 card-shadow border-2 border-indigo-200">
+                <span className="text-xs nunito text-indigo-400 uppercase tracking-wider font-semibold">
+                  {trial.stimulus.type === "word" ? "Quality Word" : "Symbol"}
+                </span>
+                <StimulusDisplay stimulus={trial.stimulus} />
+              </div>
+            </div>
+
+            {/* Prompt */}
+            <div className="text-center mb-5">
+              <span className={`inline-block px-5 py-2 rounded-2xl fredoka text-lg sm:text-xl font-bold card-shadow
+                ${isTestPhase
+                  ? "bg-amber-100 text-amber-800 border-2 border-amber-200"
+                  : "bg-indigo-100 text-indigo-800 border-2 border-indigo-200"}`}>
+                {isTestPhase ? "🧪" : "🔗"} {promptText}
+              </span>
+              {isTestPhase && (
+                <p className="text-xs text-amber-600 nunito mt-1 opacity-70">Test phase — no hints</p>
+              )}
+            </div>
+
+            {/* Options */}
+            <div className="flex gap-4 sm:gap-6 justify-center items-start mb-5 flex-wrap">
+              {trial.options.map((opt, idx) => (
+                <OptionCard
+                  key={idx}
+                  option={opt}
+                  index={idx}
+                  selected={selected === idx}
+                  feedback={isTestPhase ? null : feedback}
+                  isCorrect={idx === trial.correctIndex}
+                  disabled={feedback !== null}
+                  onClick={handleSelect}
+                />
+              ))}
+            </div>
+
+            {/* Feedback (training phases only) */}
+            {feedback && !isTestPhase && (
+              <div className={`text-center mb-4 py-3 px-6 rounded-2xl nunito font-bold text-lg mx-auto max-w-md anim-slideup
+                ${feedback === "correct" ? "bg-green-100 text-green-800 border-2 border-green-300" : "bg-amber-50 text-amber-800 border-2 border-amber-200"}`}>
+                {feedback === "correct"
+                  ? ["Connected! ✨", "That's a match! 🔗", "Bridge built! 🌉"][Math.floor(Math.random()*3)]
+                  : "Not quite — try to remember which symbol goes with which!"}
+              </div>
+            )}
+
+            {/* For test phase, show neutral acknowledgment */}
+            {feedback && isTestPhase && (
+              <div className="text-center mb-4 py-3 px-6 rounded-2xl nunito text-indigo-600 max-w-md mx-auto bg-indigo-50 border border-indigo-200 anim-slideup">
+                Response recorded.
+              </div>
+            )}
+
+            {/* Action button */}
+            <div className="flex justify-center">
+              {!feedback ? (
+                <button onClick={handleSubmit} disabled={selected === null}
+                  className={`px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-200 fredoka
+                    ${selected === null
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-b from-indigo-400 to-indigo-600 text-white hover:from-indigo-300 hover:to-indigo-500 shadow-lg hover:scale-105 border-2 border-indigo-700"}`}>
+                  🔗 Match!
+                </button>
+              ) : (
+                <button onClick={handleNext}
+                  className="px-8 py-4 rounded-2xl font-bold text-lg bg-gradient-to-b from-violet-400 to-violet-600 text-white hover:from-violet-300 hover:to-violet-500 shadow-lg hover:scale-105 transition-all duration-200 fredoka border-2 border-violet-700">
+                  {trialIndex + 1 < TRIALS_PER_PHASE ? "🔗 Next →" : "✨ Finish Phase"}
+                </button>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center mt-8 text-indigo-500 opacity-30 text-xs nunito">
+              RFT Program 3 · Symbol Bridge · Syntopic Systems
+              <br/>
+              Emoji by <a href="https://openmoji.org" target="_blank" rel="noopener" className="underline">OpenMoji</a> (CC BY-SA 4.0)
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<SymbolBridge />);
+  </script>
+</body>
+</html>
