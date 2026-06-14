@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Synonym Twister</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#12102b;color:#ffe8d6;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#ff6b6b;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px;letter-spacing:0.3px}
+.tag-ab{background:rgba(255,107,107,0.18);color:#ff6b6b;border:1px solid #ff6b6b}
+.tag-bc{background:rgba(255,190,11,0.18);color:#ffbe0b;border:1px solid #ffbe0b}
+.tag-ca{background:rgba(56,217,169,0.18);color:#38d9a9;border:1px solid #38d9a9}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+
+// Fisher-Yates shuffle
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// ── Stimulus sets ──────────────────────────────────────────────
+const PAIRS=[
+  {A:'hand',    B:'palm',         C:'mitt',      emoji:'✋',  paired:true},
+  {A:'foot',    B:'sole',         C:'tootsie',   emoji:'🦶',  paired:true},
+  {A:'head',    B:'noggin',       C:'dome',      emoji:'🗣️', paired:false},
+  {A:'stomach', B:'belly',        C:'tummy',     emoji:'🫄', paired:false},
+  {A:'mouth',   B:'lips',         C:'kisser',    emoji:'👄',  paired:false},
+  {A:'nose',    B:'snout',        C:'schnoz',    emoji:'👃',  paired:false},
+  {A:'eyes',    B:'peepers',      C:'eyeballs',  emoji:'👀',  paired:true},
+  {A:'hair',    B:'locks',        C:'mane',      emoji:'💇',  paired:false},
+  {A:'legs',    B:'pins',         C:'stems',     emoji:'🦵',  paired:true},
+  {A:'ears',    B:'lobes',        C:'listeners', emoji:'👂',  paired:true},
+  {A:'teeth',   B:'pearly whites',C:'chompers',  emoji:'🦷',  paired:false},
+  {A:'tongue',  B:'taster',       C:'licker',    emoji:'👅',  paired:false},
+];
+
+const ALL_B=PAIRS.map(p=>p.B);   // [palm, sole, noggin]
+const ALL_C=PAIRS.map(p=>p.C);   // [mitt, tootsie, dome]
+const ALL_A=PAIRS.map(p=>p.A);   // [hand, foot, head]
+const SUBSET_K=5;            // classes taught+tested per session (random subset of the bank)
+const DOTS=['🔴','🔵','🟡','🟢'];
+// pick K distinct class indices at random for this session (de-memorization)
+function pickSubset(){return sh([...Array(PAIRS.length).keys()]).slice(0,SUBSET_K);}
+// option set = correct answer + (n-1) random distractors from the full bank, shuffled
+function buildOpts(pool,correct,n){n=n||4;const d=sh(pool.filter(x=>x!==correct)).slice(0,n-1);return sh([correct,...d]);}
+
+const TRAIN_MAX=SUBSET_K*2; // K×AB + K×BC
+const TEST_MAX=SUBSET_K;
+
+// Training trials for this session's subset: each class taught A->B and B->C
+function buildTrainTrials(idxs){
+  const ab=sh(idxs).map(i=>({type:'ab',pair:PAIRS[i]}));
+  const bc=sh(idxs).map(i=>({type:'bc',pair:PAIRS[i]}));
+  return sh([...ab,...bc]);
+}
+// Derived test (C->A) generated from the same session subset — no fixed items
+function buildTestItems(idxs){
+  return sh(idxs).map(i=>{
+    const p=PAIRS[i];
+    const before=p.paired?('Put your '+(Math.random()<0.5?'LEFT':'RIGHT')):'Put your';
+    return {before,cWord:p.C.toUpperCase(),after:'on',dot:DOTS[Math.floor(Math.random()*DOTS.length)],A:p.A};
+  });
+}
+
+// ── Screens ───────────────────────────────────────────────────
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4.5rem',marginBottom:'0.8rem'}}>🤸</div>
+      <h1 style={{fontSize:'2.5rem',color:'#ff6b6b',marginBottom:'0.4rem'}}>Synonym Twister</h1>
+      <p style={{fontSize:'1.1rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:600,marginBottom:'0.8rem'}}>
+        hand → palm → mitt
+      </p>
+      <p style={{fontSize:'1.05rem',color:'#ffe8d6',marginBottom:'1.8rem',maxWidth:'460px',lineHeight:'1.6'}}>
+        Learn three silly names for the same body part — then play Twister using the silliest ones!
+      </p>
+      <div style={{display:'flex',gap:'0.5rem',fontSize:'2.2rem',marginBottom:'2rem',letterSpacing:'4px'}}>
+        🔴🔵🟡🟢
+      </div>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#ff6b6b',color:'#12102b',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(255,107,107,0.4)'}}>
+        Let's Play! 🤸
+      </button>
+    </div>
+  );
+}
+
+function Demo({onDone}){
+  const [step,setStep]=useState(0);
+  const steps=[
+    {
+      title:'Step 1: Body Part → Synonym (A→B)',
+      body:(
+        <div>
+          <div style={{fontSize:'3.5rem',marginBottom:'0.6rem'}}>✋</div>
+          <p style={{color:'#ffe8d6',fontSize:'1.1rem',marginBottom:'0.4rem'}}>
+            <span style={{color:'#ff6b6b',fontFamily:'Fredoka',fontWeight:700,fontSize:'1.4rem'}}>HAND</span>
+            {' '}means the same as…
+          </p>
+          <p style={{fontSize:'2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700}}>PALM</p>
+          <p style={{fontSize:'0.85rem',color:'#64748b',marginTop:'0.6rem'}}>Body part (A) → First synonym (B)</p>
+        </div>
+      )
+    },
+    {
+      title:'Step 2: Synonym → Silly Word (B→C)',
+      body:(
+        <div>
+          <p style={{fontSize:'1.8rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.4rem'}}>PALM</p>
+          <p style={{color:'#ffe8d6',fontSize:'1.1rem',marginBottom:'0.4rem'}}>
+            <span style={{color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700}}>PALM</span>
+            {' '}means the same as…
+          </p>
+          <p style={{fontSize:'2rem',color:'#38d9a9',fontFamily:'Fredoka',fontWeight:700}}>MITT</p>
+          <p style={{fontSize:'0.85rem',color:'#64748b',marginTop:'0.6rem'}}>First synonym (B) → Silly word (C)</p>
+        </div>
+      )
+    },
+    {
+      title:'The Twister Challenge! (C→A)',
+      body:(
+        <div>
+          <div style={{fontSize:'1.6rem',marginBottom:'0.6rem',letterSpacing:'4px'}}>🔴🔵🟡🟢</div>
+          <div style={{background:'rgba(255,255,255,0.06)',borderRadius:'1rem',padding:'1rem 1.5rem',marginBottom:'0.8rem'}}>
+            <p style={{fontSize:'1.2rem',color:'#ffe8d6',fontFamily:'Fredoka',lineHeight:'1.7'}}>
+              "Put your LEFT{' '}
+              <span style={{color:'#38d9a9',fontWeight:700}}>MITT</span>
+              {' '}on 🔴"
+            </p>
+          </div>
+          <p style={{color:'#ffe8d6',fontSize:'1rem',marginBottom:'0.8rem'}}>
+            Which body part is your <span style={{color:'#38d9a9',fontWeight:700,fontFamily:'Fredoka'}}>MITT</span>?
+          </p>
+          <div style={{display:'flex',gap:'0.7rem',justifyContent:'center'}}>
+            <span style={{padding:'0.5rem 1.2rem',border:'2px solid rgba(255,255,255,0.15)',borderRadius:'0.7rem',opacity:0.4,fontFamily:'Fredoka',fontSize:'1.1rem'}}>foot</span>
+            <span style={{padding:'0.5rem 1.2rem',border:'3px solid #38d9a9',borderRadius:'0.7rem',background:'rgba(56,217,169,0.15)',fontFamily:'Fredoka',fontSize:'1.1rem',color:'#38d9a9',fontWeight:700}}>hand ✓</span>
+            <span style={{padding:'0.5rem 1.2rem',border:'2px solid rgba(255,255,255,0.15)',borderRadius:'0.7rem',opacity:0.4,fontFamily:'Fredoka',fontSize:'1.1rem'}}>head</span>
+          </div>
+          <p style={{fontSize:'0.9rem',color:'#38d9a9',fontWeight:700,marginTop:'0.7rem'}}>MITT = PALM = HAND! You figured it out! ✨</p>
+        </div>
+      )
+    },
+  ];
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <h2 style={{fontSize:'1.6rem',color:'#ff6b6b',marginBottom:'1.5rem'}}>{steps[step].title}</h2>
+      {steps[step].body}
+      <div style={{marginTop:'1.8rem'}}>
+        {step<steps.length-1
+          ?<button onClick={()=>setStep(step+1)} style={{padding:'0.8rem 2.2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#ff6b6b',color:'#12102b',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Next →</button>
+          :<button onClick={onDone} style={{padding:'0.8rem 2.2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#38d9a9',color:'#12102b',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>I'm Ready! ✓</button>
+        }
+      </div>
+    </div>
+  );
+}
+
+function ABTrial({pair,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>buildOpts(ALL_B,pair.B));
+  const pick=(o)=>{
+    const ok=o===pair.B;
+    setFb({ok,o});
+    playTone(ok?'correct':'incorrect');
+    setTimeout(()=>onDone(ok?1:0),1500);
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ab">A → B  ·  Body Part → Synonym</span>
+      <div style={{fontSize:'3.5rem',marginBottom:'0.6rem'}}>{pair.emoji}</div>
+      <p style={{fontSize:'2rem',color:'#ff6b6b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>
+        {pair.A.toUpperCase()}
+      </p>
+      <p style={{fontSize:'1.1rem',color:'#ffe8d6',marginBottom:'1.6rem'}}>means the same as…</p>
+      <div style={{display:'flex',gap:'0.8rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(255,107,107,0.07)',bd='2px solid rgba(255,107,107,0.28)';
+          if(fb){
+            if(o===pair.B){bg='rgba(56,217,169,0.14)';bd='2px solid #38d9a9';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}
+          }
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',
+                fontSize:'1.2rem',fontFamily:'Fredoka',color:'#ffe8d6',fontWeight:600,transition:'border 0.15s'}}>
+              {o}
+            </button>
+          );
+        })}
+      </div>
+      {fb&&(
+        <p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',
+          color:fb.ok?'#38d9a9':'#f87171'}}>
+          {fb.ok?'✓ Correct!':'✗  '+pair.A.toUpperCase()+' = '+pair.B.toUpperCase()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BCTrial({pair,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>buildOpts(ALL_C,pair.C));
+  const pick=(o)=>{
+    const ok=o===pair.C;
+    setFb({ok,o});
+    playTone(ok?'correct':'incorrect');
+    setTimeout(()=>onDone(ok?1:0),1500);
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-bc">B → C  ·  Synonym → Silly Word</span>
+      <div style={{fontSize:'3.5rem',marginBottom:'0.6rem'}}>{pair.emoji}</div>
+      <p style={{fontSize:'2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>
+        {pair.B.toUpperCase()}
+      </p>
+      <p style={{fontSize:'1.1rem',color:'#ffe8d6',marginBottom:'1.6rem'}}>means the same as…</p>
+      <div style={{display:'flex',gap:'0.8rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(255,190,11,0.07)',bd='2px solid rgba(255,190,11,0.28)';
+          if(fb){
+            if(o===pair.C){bg='rgba(56,217,169,0.14)';bd='2px solid #38d9a9';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}
+          }
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',
+                fontSize:'1.2rem',fontFamily:'Fredoka',color:'#ffe8d6',fontWeight:600,transition:'border 0.15s'}}>
+              {o}
+            </button>
+          );
+        })}
+      </div>
+      {fb&&(
+        <p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',
+          color:fb.ok?'#38d9a9':'#f87171'}}>
+          {fb.ok?'✓ Correct!':'✗  '+pair.B.toUpperCase()+' = '+pair.C.toUpperCase()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TestTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>buildOpts(ALL_A,item.A));
+  const pick=(o)=>{
+    const ok=o===item.A;
+    setFb({ok,o});
+    playTone('neutral'); // No corrective feedback in test phase
+    setTimeout(()=>onDone(ok?1:0),1800);
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-ca">Twister Challenge!  C → A  ✨</span>
+
+      {/* Decorative Twister mat */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.4rem',margin:'0.7rem 0',fontSize:'1.8rem',opacity:0.8}}>
+        {['🔴','🔵','🟡','🟢','🟢','🔴','🔵','🟡'].map((d,i)=>(
+          <span key={i}>{d}</span>
+        ))}
+      </div>
+
+      {/* Twister instruction */}
+      <div style={{background:'rgba(255,255,255,0.06)',border:'2px solid rgba(56,217,169,0.2)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.2rem',maxWidth:'420px'}}>
+        <p style={{fontSize:'1.35rem',color:'#ffe8d6',fontFamily:'Fredoka',lineHeight:'1.7'}}>
+          {item.before}{' '}
+          <span style={{color:'#38d9a9',fontWeight:700,fontSize:'1.55rem'}}>{item.cWord}</span>
+          {' '}{item.after}{' '}{item.dot}
+        </p>
+      </div>
+
+      <p style={{fontSize:'1rem',color:'#aaa',marginBottom:'1.2rem'}}>
+        Which body part is your{' '}
+        <span style={{color:'#38d9a9',fontWeight:700,fontFamily:'Fredoka',fontSize:'1.1rem'}}>{item.cWord}</span>?
+      </p>
+
+      <div style={{display:'flex',gap:'0.8rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(56,217,169,0.06)',bd='2px solid rgba(56,217,169,0.22)';
+          if(fb){
+            if(o===item.A){bg='rgba(56,217,169,0.15)';bd='3px solid #38d9a9';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.08)';bd='3px solid rgba(248,113,113,0.45)';}
+          }
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.9rem 2.2rem',cursor:fb?'default':'pointer',
+                fontSize:'1.2rem',fontFamily:'Fredoka',color:'#ffe8d6',fontWeight:600,transition:'border 0.15s'}}>
+              {o}
+            </button>
+          );
+        })}
+      </div>
+
+      {fb&&(
+        <p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'1rem'}}>
+          Response recorded ✓
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100);
+  const ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#ff6b6b',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#ffe8d6',fontSize:'1.2rem'}}>{trainScore} / {trainMax} &nbsp;({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>
+        {ok?'Great! Now for the Twister challenge…':'Keep practicing those synonyms!'}
+      </p>
+      {ok
+        ?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#38d9a9',color:'#12102b',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem',boxShadow:'0 4px 18px rgba(56,217,169,0.35)'}}>
+            Start Twister! 🤸
+          </button>
+        :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#ff6b6b',color:'#12102b',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>
+            Try Again 🔄
+          </button>
+      }
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12m',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#ff6b6b',marginBottom:'1.5rem'}}>Results</h2>
+
+      <div style={{background:'rgba(255,107,107,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#ff6b6b',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (A→B + B→C)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore} / {trainMax}</p>
+      </div>
+
+      <div style={{background:'rgba(56,217,169,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#38d9a9',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Twister Test (C→A emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore} / {testMax}</p>
+      </div>
+
+      {mastery&&(
+        <div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>
+          🎖️ MASTERY — Equivalence Achieved! 🎖️
+        </div>
+      )}
+
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()}
+          style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#ff6b6b',color:'#12102b',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>
+          Play Again
+        </button>
+        <a href="index.html"
+          style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#ffe8d6',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600,textDecoration:'none',display:'inline-block'}}>
+          ← Back to FrameShift
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── App orchestrator ──────────────────────────────────────────
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testItems,setTestItems]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+  const [sIdxs,setSIdxs]=useState([]);
+
+  const startTrain=()=>{
+    const idxs=pickSubset();setSIdxs(idxs);
+    setTrials(buildTrainTrials(idxs));
+    setIdx(0);
+    setTrainScore(0);
+    setPh('train');
+  };
+
+  const startTest=()=>{
+    setTestItems(buildTestItems(sIdxs));
+    setIdx(0);
+    setTestScore(0);
+    setPh('test');
+  };
+
+  const onTrainDone=(s)=>{
+    setTrainScore(v=>v+s);
+    if(idx<trials.length-1){setTimeout(()=>setIdx(idx+1),300);}
+    else{setTimeout(()=>setPh('gate'),300);}
+  };
+
+  const onTestDone=(s)=>{
+    setTestScore(v=>v+s);
+    if(idx<testItems.length-1){setTimeout(()=>setIdx(idx+1),300);}
+    else{setTimeout(()=>setPh('results'),300);}
+  };
+
+  if(ph==='welcome')return<Welcome onStart={()=>setPh('demo')}/>;
+  if(ph==='demo')return<Demo onDone={startTrain}/>;
+
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='ab')return<ABTrial key={'ab'+idx} pair={t.pair} onDone={onTrainDone} num={idx+1} tot={trials.length}/>;
+    if(t.type==='bc')return<BCTrial key={'bc'+idx} pair={t.pair} onDone={onTrainDone} num={idx+1} tot={trials.length}/>;
+  }
+
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+
+  if(ph==='test'&&testItems.length>0){
+    const t=testItems[idx];
+    return<TestTrial key={'test'+idx} item={t} onDone={onTestDone} num={idx+1} tot={testItems.length}/>;
+  }
+
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

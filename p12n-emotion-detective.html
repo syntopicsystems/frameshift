@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Emotion Detective</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#1a0f08;color:#fde8cc;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#f4a261;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-ba{background:rgba(244,162,97,0.18);color:#f4a261;border:1px solid #f4a261}
+.tag-ca{background:rgba(231,111,81,0.2);color:#e76f51;border:1px solid #e76f51}
+.tag-bc{background:rgba(42,157,143,0.2);color:#2a9d8f;border:1px solid #2a9d8f}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// A = emotion label, B = face emoji, C = event emoji + description
+const PAIRS=[
+  {A:'hurt',     B:'😢', C:'🩹',  Cdesc:'a scraped knee'},
+  {A:'happy',    B:'😊', C:'🎁',  Cdesc:'getting a present'},
+  {A:'surprised',B:'😲', C:'🎈💥',Cdesc:'a balloon popping'},
+  {A:'scared',   B:'😨', C:'🕷️',  Cdesc:'seeing a big spider'},
+  {A:'angry',    B:'😠', C:'🧱',  Cdesc:'a block tower knocked down'},
+  {A:'sad',      B:'😞', C:'🌧️',  Cdesc:'a rainy day stuck inside'},
+  {A:'excited',  B:'🤩', C:'🎢',  Cdesc:'going on a roller coaster'},
+  {A:'tired',    B:'😴', C:'🛌',  Cdesc:'a very long busy day'},
+  {A:'proud',    B:'😌', C:'🏅',  Cdesc:'winning a medal'},
+];
+let SESSION=[];
+function pickSubset(arr,k){return sh([...arr]).slice(0,k);}
+const ALL_A=PAIRS.map(p=>p.A);
+const TRAIN_MAX=6; // 3×BA + 3×CA
+const TEST_MAX=3;  // 3×BC
+
+function buildTrainTrials(){
+  const ba=sh([...SESSION]).map(p=>({type:'ba',pair:p}));
+  const ca=sh([...SESSION]).map(p=>({type:'ca',pair:p}));
+  return [...ba,...ca];
+}
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4.5rem',marginBottom:'0.8rem'}}>🕵️</div>
+      <h1 style={{fontSize:'2.5rem',color:'#f4a261',marginBottom:'0.5rem'}}>Emotion Detective</h1>
+      <p style={{fontSize:'1.05rem',color:'#fde8cc',marginBottom:'1.8rem',maxWidth:'440px',lineHeight:'1.6'}}>
+        A face shows a feeling. An event causes a feeling. Can you match feelings to the events that cause them — even when you weren't taught the connection?
+      </p>
+      <div style={{fontSize:'2.5rem',marginBottom:'2rem',letterSpacing:'8px'}}>😢 😊 😲</div>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#f4a261',color:'#1a0f08',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(244,162,97,0.4)'}}>
+        Start Detecting! 🕵️
+      </button>
+    </div>
+  );
+}
+
+function BATrial({pair,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(p=>p.A)));
+  const pick=(o)=>{const ok=o===pair.A;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ba">Face → Feeling  (B→A)</span>
+      <div style={{fontSize:'7rem',marginBottom:'0.5rem',lineHeight:1}}>{pair.B}</div>
+      <p style={{fontSize:'1.2rem',color:'#fde8cc',marginBottom:'1.8rem'}}>How do I feel?</p>
+      <div style={{display:'flex',gap:'0.8rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(244,162,97,0.07)',bd='2px solid rgba(244,162,97,0.28)';
+          if(fb){if(o===pair.A){bg='rgba(42,157,143,0.15)';bd='2px solid #2a9d8f';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',fontSize:'1.2rem',fontFamily:'Fredoka',color:'#fde8cc',fontWeight:600}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#2a9d8f':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  That face feels '+pair.A}</p>}
+    </div>
+  );
+}
+
+function CATrial({pair,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(p=>p.A)));
+  const pick=(o)=>{const ok=o===pair.A;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ca">Event → Feeling  (C→A)</span>
+      <div style={{fontSize:'5rem',marginBottom:'0.3rem'}}>{pair.C}</div>
+      <p style={{fontSize:'1.1rem',color:'#e76f51',fontFamily:'Fredoka',fontWeight:600,marginBottom:'0.3rem'}}>{pair.Cdesc}</p>
+      <p style={{fontSize:'1.2rem',color:'#fde8cc',marginBottom:'1.8rem'}}>How would this make you feel?</p>
+      <div style={{display:'flex',gap:'0.8rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(231,111,81,0.07)',bd='2px solid rgba(231,111,81,0.28)';
+          if(fb){if(o===pair.A){bg='rgba(42,157,143,0.15)';bd='2px solid #2a9d8f';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',fontSize:'1.2rem',fontFamily:'Fredoka',color:'#fde8cc',fontWeight:600}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#2a9d8f':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  That would feel '+pair.A}</p>}
+    </div>
+  );
+}
+
+function BCTrial({pair,onDone,num,tot}){
+  // Show face (B), pick event (C) — emergent, no corrective feedback
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(p=>({A:p.A,C:p.C,Cdesc:p.Cdesc}))));
+  const pick=(o)=>{const ok=o.A===pair.A;setFb({ok,o});playTone('neutral');setTimeout(()=>onDone(ok?1:0),1800);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-bc">Face → Event  ✨  (B→C)</span>
+      <div style={{fontSize:'7rem',marginBottom:'0.5rem',lineHeight:1}}>{pair.B}</div>
+      <p style={{fontSize:'1.2rem',color:'#fde8cc',marginBottom:'1.8rem'}}>Which one is the same?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(42,157,143,0.06)',bd='2px solid rgba(42,157,143,0.22)';
+          if(fb){if(o.A===pair.A){bg='rgba(42,157,143,0.15)';bd='3px solid #2a9d8f';}
+            else if(fb.o.A===o.A&&!fb.ok){bg='rgba(248,113,113,0.08)';bd='3px solid rgba(248,113,113,0.4)';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'1rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',transition:'border 0.15s'}}>
+              <div style={{fontSize:'2.5rem'}}>{o.C}</div>
+              <div style={{fontSize:'0.85rem',color:'#aaa',marginTop:'0.3rem',fontFamily:'Nunito'}}>{o.Cdesc}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'1rem'}}>Response recorded ✓</p>}
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#f4a261',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#fde8cc',fontSize:'1.2rem'}}>{trainScore} / {trainMax}  ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Now — can you match faces to events you were never taught together?':'Let\'s review those feelings!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#2a9d8f',color:'#fff',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Start Test →</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#f4a261',color:'#1a0f08',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12n',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#f4a261',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(244,162,97,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#f4a261',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (B→A + C→A)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore} / {trainMax}</p>
+      </div>
+      <div style={{background:'rgba(42,157,143,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#2a9d8f',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Test (B→C emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore} / {testMax}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#f4a261',color:'#1a0f08',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#fde8cc',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function AppFixed(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testTrials,setTestTrials]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+
+  const startTrain=()=>{SESSION=pickSubset(PAIRS,3);const t=buildTrainTrials();setTrials(t);setIdx(0);setTrainScore(0);setPh('train');};
+  const startTest=()=>{const t=sh([...SESSION]).map(p=>p);setTestTrials(t);setIdx(0);setTestScore(0);setPh('test');};
+
+  const onTrain=(s)=>{
+    const ns=trainScore+s;setTrainScore(ns);
+    if(idx<trials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('gate'),300);
+  };
+  const onTest=(s)=>{
+    const ns=testScore+s;setTestScore(ns);
+    if(idx<testTrials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('results'),300);
+  };
+
+  if(ph==='welcome')return<Welcome onStart={startTrain}/>;
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='ba')return<BATrial key={'ba'+idx} pair={t.pair} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='ca')return<CATrial key={'ca'+idx} pair={t.pair} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+  }
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test'&&testTrials.length>0)return<BCTrial key={'bc'+idx} pair={testTrials[idx]} onDone={onTest} num={idx+1} tot={testTrials.length}/>;
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<AppFixed/>);
+</script>
+</body>
+</html>

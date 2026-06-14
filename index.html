@@ -13,43 +13,26 @@
     #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
     .content { position: relative; z-index: 1; }
     .card-shadow { box-shadow: 2px 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06); }
-    .glass {
-      background: rgba(255,255,255,0.82);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-    .glass-dark {
-      background: rgba(30,30,60,0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
+    .glass { background: rgba(255,255,255,0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .glass-dark { background: rgba(30,30,60,0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     @keyframes fadeIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
     @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
     @keyframes badgePop { 0%{transform:scale(0)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
     .anim-fadein { animation: fadeIn 0.4s ease-out both; }
-    .anim-float { animation: float 3s ease-in-out infinite; }
-    .anim-shimmer {
-      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
-      background-size: 200% 100%;
-      animation: shimmer 2s ease-in-out infinite;
-    }
+    .anim-shimmer { background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%); background-size: 200% 100%; animation: shimmer 2s ease-in-out infinite; }
     .anim-badgepop { animation: badgePop 0.4s ease-out; }
-    .mastery-ring {
-      background: conic-gradient(var(--ring-color) var(--ring-pct), #e5e7eb var(--ring-pct));
-      border-radius: 50%;
-      padding: 3px;
-    }
+    .mastery-ring { background: conic-gradient(var(--ring-color) var(--ring-pct), #e5e7eb var(--ring-pct)); border-radius: 50%; padding: 3px; }
     .star-gold { color: #F59E0B; text-shadow: 0 0 6px rgba(245,158,11,0.5); }
-    .star-silver { color: #9CA3AF; text-shadow: 0 0 4px rgba(156,163,175,0.4); }
-    .star-bronze { color: #D97706; text-shadow: 0 0 4px rgba(217,119,6,0.4); }
+    .card-locked { filter: grayscale(0.9) opacity(0.55); pointer-events: none; }
+    .card-muted { filter: grayscale(0.35) opacity(0.82); }
+    .lockbadge { background: rgba(71,85,105,0.92); color:#fff; }
+    .bonus-ring { box-shadow: 0 0 0 2px #F59E0B, 0 0 14px rgba(245,158,11,0.45); }
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden">
   <canvas id="bg-canvas"></canvas>
   <div id="root" class="content"></div>
-
-  <!-- Dancing Lines Background -->
   <script>
     (function() {
       const canvas = document.getElementById('bg-canvas');
@@ -57,126 +40,65 @@
       let w, h, t = 0;
       const lines = [];
       const LINE_COUNT = 7;
-      const PALETTE = [
-        'rgba(99,102,241,0.12)',   // indigo
-        'rgba(168,85,247,0.10)',   // purple
-        'rgba(236,72,153,0.09)',   // pink
-        'rgba(59,130,246,0.11)',   // blue
-        'rgba(34,197,94,0.08)',    // green
-        'rgba(245,158,11,0.09)',   // amber
-        'rgba(6,182,212,0.10)',    // cyan
-      ];
-
-      function resize() {
-        w = canvas.width = window.innerWidth;
-        h = canvas.height = window.innerHeight;
-      }
-      window.addEventListener('resize', resize);
-      resize();
-
-      // Initialize line parameters
-      for (let i = 0; i < LINE_COUNT; i++) {
-        lines.push({
-          color: PALETTE[i % PALETTE.length],
-          amplitude: 40 + Math.random() * 60,
-          frequency: 0.002 + Math.random() * 0.003,
-          phase: Math.random() * Math.PI * 2,
-          speed: 0.003 + Math.random() * 0.004,
-          yBase: (i + 1) / (LINE_COUNT + 1),
-          thickness: 1.5 + Math.random() * 2,
-          waveCount: 1.5 + Math.random() * 1.5,
-        });
-      }
-
+      const PALETTE = ['rgba(99,102,241,0.12)','rgba(168,85,247,0.10)','rgba(236,72,153,0.09)','rgba(59,130,246,0.11)','rgba(34,197,94,0.08)','rgba(245,158,11,0.09)','rgba(6,182,212,0.10)'];
+      function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+      window.addEventListener('resize', resize); resize();
+      for (let i = 0; i < LINE_COUNT; i++) { lines.push({ color: PALETTE[i % PALETTE.length], amplitude: 40 + Math.random() * 60, frequency: 0.002 + Math.random() * 0.003, phase: Math.random() * Math.PI * 2, speed: 0.003 + Math.random() * 0.004, yBase: (i + 1) / (LINE_COUNT + 1), thickness: 1.5 + Math.random() * 2 }); }
       function draw() {
         ctx.clearRect(0, 0, w, h);
-        // Soft gradient background
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, '#F8FAFC');
-        grad.addColorStop(0.5, '#EEF2FF');
-        grad.addColorStop(1, '#F5F3FF');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
-
+        grad.addColorStop(0, '#F8FAFC'); grad.addColorStop(0.5, '#EEF2FF'); grad.addColorStop(1, '#F5F3FF');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
         for (const line of lines) {
-          ctx.beginPath();
-          ctx.strokeStyle = line.color;
-          ctx.lineWidth = line.thickness;
+          ctx.beginPath(); ctx.strokeStyle = line.color; ctx.lineWidth = line.thickness;
           const yCenter = line.yBase * h;
           for (let x = 0; x <= w; x += 2) {
-            const y = yCenter +
-              Math.sin(x * line.frequency + t * line.speed + line.phase) * line.amplitude +
-              Math.sin(x * line.frequency * 0.5 + t * line.speed * 0.7 + line.phase * 1.3) * line.amplitude * 0.5;
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            const y = yCenter + Math.sin(x * line.frequency + t * line.speed + line.phase) * line.amplitude + Math.sin(x * line.frequency * 0.5 + t * line.speed * 0.7 + line.phase * 1.3) * line.amplitude * 0.5;
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           }
           ctx.stroke();
         }
-        t++;
-        requestAnimationFrame(draw);
+        t++; requestAnimationFrame(draw);
       }
       draw();
     })();
   </script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useMemo } = React;
 
-    // ── TRACKER DATA LAYER ──────────────────────────────────
+    // ===== TRACKER DATA LAYER (schema identical to game-side window.FrameShift) =====
     const STORAGE_KEY = "frameshift_progress";
+    const defaultProgress = () => ({ programs: {}, achievements: {}, totalSessions: 0, streak: { current: 0, best: 0, lastDate: null } });
+    const loadProgress = () => { try { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return defaultProgress(); const p = JSON.parse(raw); p.programs = p.programs || {}; p.streak = p.streak || { current: 0, best: 0, lastDate: null }; return p; } catch { return defaultProgress(); } };
+    const saveProgress = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {} };
 
-    const defaultProgress = () => ({
-      programs: {},
-      achievements: {},
-      totalSessions: 0,
-      streak: { current: 0, best: 0, lastDate: null },
-    });
-
-    const loadProgress = () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return defaultProgress();
-        return JSON.parse(raw);
-      } catch { return defaultProgress(); }
-    };
-
-    const saveProgress = (data) => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
-    };
-
-    // ── PROGRAM METADATA ────────────────────────────────────
+    // ===== PROGRAM METADATA =====
     const PROGRAMS = [
-      // ── Translation (P1–2) ──────────────────────────────
       { id: "p1",  num: 1,  title: "More or Less",         subtitle: "Comparative",            emoji: "⚖️",  color: "#22C55E", file: "p1-more-or-less.html",          category: "Translation" },
       { id: "p2",  num: 2,  title: "Same & Different",     subtitle: "Coordination",           emoji: "🔍",  color: "#F59E0B", file: "p2-same-and-different.html",    category: "Translation" },
-      // ── Equivalence (P3–6, 19, 29) ──────────────────────
       { id: "p3",  num: 3,  title: "Symbol Bridge",        subtitle: "Stimulus Equivalence",   emoji: "🌉",  color: "#8B5CF6", file: "p3-symbol-bridge.html",        category: "Equivalence" },
       { id: "p4",  num: 4,  title: "Scent Match",          subtitle: "Cross-Modal Olfactory",  emoji: "🌸",  color: "#EC4899", file: "p4-scent-match.html",          category: "Equivalence" },
       { id: "p5",  num: 5,  title: "Taste Test",           subtitle: "Cross-Modal Gustatory",  emoji: "🍋",  color: "#F43F5E", file: "p5-taste-test.html",           category: "Equivalence" },
       { id: "p6",  num: 6,  title: "Common Features",      subtitle: "Analogical Reasoning",   emoji: "🦁",  color: "#16A34A", file: "p6-common-features.html",      category: "Equivalence" },
-      // ── Abstraction (P7–10, 30) ─────────────────────────
       { id: "p7",  num: 7,  title: "What Kind of Story?",  subtitle: "Genre Abstraction",      emoji: "📖",  color: "#DB2777", file: "p7-what-kind-of-story.html",   category: "Abstraction" },
       { id: "p8",  num: 8,  title: "The Why Detective",    subtitle: "Interrogative Frame",    emoji: "🕵️",  color: "#2563EB", file: "p8-why-detective.html",        category: "Abstraction" },
       { id: "p9",  num: 9,  title: "What Kind?",           subtitle: "Descriptive Frame",      emoji: "🎨",  color: "#CA8A04", file: "p9-what-kind.html",            category: "Abstraction" },
       { id: "p10", num: 10, title: "What Comes Next?",     subtitle: "Inductive Pattern",      emoji: "🧩",  color: "#4F46E5", file: "p10-what-comes-next.html",     category: "Abstraction" },
-      // ── Inference (P11–14, 31) ──────────────────────────
       { id: "p11", num: 11, title: "Chain Reaction",       subtitle: "Conditional Inference",   emoji: "⛓️",  color: "#DC2626", file: "p11-chain-reaction.html",      category: "Inference" },
       { id: "p12", num: 12, title: "Value Chain",          subtitle: "Reverse Derivation",     emoji: "💎",  color: "#7C3AED", file: "p12-value-chain.html",         category: "Inference" },
       { id: "p13", num: 13, title: "Trait Bridge",         subtitle: "Synonym Inference",      emoji: "🌈",  color: "#0891B2", file: "p13-trait-bridge.html",        category: "Inference" },
       { id: "p14", num: 14, title: "Feeling Metaphors",    subtitle: "Metaphor",               emoji: "🎭",  color: "#BE185D", file: "p14-feeling-metaphors.html",   category: "Inference" },
-      // ── Social (P15–16) ─────────────────────────────────
       { id: "p15", num: 15, title: "Creative Tools",       subtitle: "Creative Problem-Solving",emoji: "🛠️", color: "#EA580C", file: "p15-creative-tools.html",     category: "Social" },
       { id: "p16", num: 16, title: "What to Share",        subtitle: "Pragmatic Disclosure",   emoji: "🤝",  color: "#0D9488", file: "p16-what-to-share.html",       category: "Social" },
-      // ── Language (P17–18, 20) ───────────────────────────
       { id: "p17", num: 17, title: "Name That Thing",      subtitle: "Description",            emoji: "🏷️",  color: "#6D28D9", file: "p17-name-that-thing.html",     category: "Language" },
       { id: "p18", num: 18, title: "Character Namer",      subtitle: "Naming",                 emoji: "✏️",  color: "#B91C1C", file: "p18-character-namer.html",     category: "Language" },
       { id: "p19", num: 19, title: "Same or Different",    subtitle: "Equivalence Class",      emoji: "🎯",  color: "#059669", file: "p19-same-or-different.html",   category: "Equivalence" },
       { id: "p20", num: 20, title: "Pronoun Bridge",       subtitle: "Pronouns",               emoji: "👤",  color: "#4338CA", file: "p20-pronoun-bridge.html",      category: "Language" },
-      // ── Transformation (P21–28, 32) ─────────────────────
       { id: "p21", num: 21, title: "Near & Far",           subtitle: "Spatial Comparison",     emoji: "🔭",  color: "#1D4ED8", file: "p21-near-and-far.html",        category: "Transformation" },
       { id: "p22", num: 22, title: "First Things First",   subtitle: "Temporal Sequencing",    emoji: "⏳",  color: "#B45309", file: "p22-first-things-first.html",   category: "Transformation" },
       { id: "p23", num: 23, title: "Opposite Day",         subtitle: "Opposition",             emoji: "🔄",  color: "#DC2626", file: "p23-opposite-day.html",        category: "Transformation" },
@@ -189,333 +111,433 @@
       { id: "p30", num: 30, title: "What's It Like?",      subtitle: "Feature Derivation",     emoji: "🧂",  color: "#0D9488", file: "p30-whats-it-like.html",       category: "Abstraction" },
       { id: "p31", num: 31, title: "Where Would You Go?",  subtitle: "Location Inference",     emoji: "🗺️",  color: "#65A30D", file: "p31-where-would-you-go.html",  category: "Inference" },
       { id: "p32", num: 32, title: "Here & There",         subtitle: "Deictic Reversal",       emoji: "🔀",  color: "#4338CA", file: "p32-here-and-there.html",      category: "Transformation" },
+      { id: "eq13a", num: "EQ13A", title: "Music Notes", subtitle: "Equivalence 13", emoji: "🎵", color: "#6366F1", file: "eq13a-music-notes.html", category: "Equivalence 13" },
+      { id: "eq13b", num: "EQ13B", title: "Equivalence Generalization", subtitle: "Equivalence 13", emoji: "🎲", color: "#6366F1", file: "eq13b-equivalence-generalization.html", category: "Equivalence 13" },
+      { id: "eq13c", num: "EQ13C", title: "Feelings in Context", subtitle: "Equivalence 13", emoji: "💗", color: "#6366F1", file: "eq13c-feelings-in-context.html", category: "Equivalence 13" },
+      { id: "eq13d", num: "EQ13D", title: "Contextual Behaviors Emotions", subtitle: "Equivalence 13", emoji: "😊", color: "#6366F1", file: "eq13d-contextual-behaviors-emotions.html", category: "Equivalence 13" },
+      { id: "eq13e", num: "EQ13E", title: "Ad Libs Parts of Speech", subtitle: "Equivalence 13", emoji: "🎲", color: "#6366F1", file: "eq13e-ad-libs-parts-of-speech.html", category: "Equivalence 13" },
+      { id: "eq13f", num: "EQ13F", title: "Synonymous Stories", subtitle: "Equivalence 13", emoji: "🔗", color: "#6366F1", file: "eq13f-synonymous-stories.html", category: "Equivalence 13" },
+      { id: "eq13g", num: "EQ13G", title: "Sorting Noun Types", subtitle: "Equivalence 13", emoji: "🗂️", color: "#6366F1", file: "eq13g-sorting-noun-types.html", category: "Equivalence 13" },
+      { id: "eq13h", num: "EQ13H", title: "Synonymous Manding", subtitle: "Equivalence 13", emoji: "🔗", color: "#6366F1", file: "eq13h-synonymous-manding.html", category: "Equivalence 13" },
+      { id: "eq13j", num: "EQ13J", title: "Mand Functions Post Class", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13j-mand-functions-post-class.html", category: "Equivalence 13" },
+      { id: "eq13k", num: "EQ13K", title: "Items Fulfilling Function", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13k-items-fulfilling-function.html", category: "Equivalence 13" },
+      { id: "eq13l", num: "EQ13L", title: "Functions of Locations", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13l-functions-of-locations.html", category: "Equivalence 13" },
+      { id: "eq13m", num: "EQ13M", title: "Tact Functions", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13m-tact-functions.html", category: "Equivalence 13" },
+      { id: "eq13n", num: "EQ13N", title: "Tact Function Post Class", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13n-tact-function-post-class.html", category: "Equivalence 13" },
+      { id: "eq13o", num: "EQ13O", title: "Intraverbal Functions Pre Class", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13o-intraverbal-functions-pre-class.html", category: "Equivalence 13" },
+      { id: "eq13p", num: "EQ13P", title: "Intraverbal Functions Post Class", subtitle: "Equivalence 13", emoji: "🛠️", color: "#6366F1", file: "eq13p-intraverbal-functions-post-class.html", category: "Equivalence 13" },
+      { id: "eq13q", num: "EQ13Q", title: "Animal Ecology", subtitle: "Equivalence 13", emoji: "🐾", color: "#6366F1", file: "eq13q-animal-ecology.html", category: "Equivalence 13" },
+      { id: "eq13r", num: "EQ13R", title: "Natural Events", subtitle: "Equivalence 13", emoji: "🌦️", color: "#6366F1", file: "eq13r-natural-events.html", category: "Equivalence 13" },
+      { id: "eq13s", num: "EQ13S", title: "Sports Teams", subtitle: "Equivalence 13", emoji: "⚽", color: "#6366F1", file: "eq13s-sports-teams.html", category: "Equivalence 13" },
+      { id: "eq13t", num: "EQ13T", title: "Food Groups", subtitle: "Equivalence 13", emoji: "🍎", color: "#6366F1", file: "eq13t-food-groups.html", category: "Equivalence 13" },
+      { id: "eq13u", num: "EQ13U", title: "Leisure Activities", subtitle: "Equivalence 13", emoji: "🎲", color: "#6366F1", file: "eq13u-leisure-activities.html", category: "Equivalence 13" },
+      { id: "eq13v", num: "EQ13V", title: "Countries Continents", subtitle: "Equivalence 13", emoji: "🗺️", color: "#6366F1", file: "eq13v-countries-continents.html", category: "Equivalence 13" },
+      { id: "eq13w", num: "EQ13W", title: "Historical Figures", subtitle: "Equivalence 13", emoji: "🎲", color: "#6366F1", file: "eq13w-historical-figures.html", category: "Equivalence 13" },
+      { id: "eq13x", num: "EQ13X", title: "What Does it See", subtitle: "Equivalence 13", emoji: "🎲", color: "#6366F1", file: "eq13x-what-does-it-see.html", category: "Equivalence 13" },
+      { id: "eq14a", num: "EQ14A", title: "Drawing Class Members", subtitle: "Equivalence 14", emoji: "✏️", color: "#8B5CF6", file: "eq14a-drawing-class-members.html", category: "Equivalence 14" },
+      { id: "eq14b", num: "EQ14B", title: "Categories with Lag", subtitle: "Equivalence 14", emoji: "🎲", color: "#8B5CF6", file: "eq14b-categories-with-lag.html", category: "Equivalence 14" },
+      { id: "eq14c", num: "EQ14C", title: "Guessing with Hints", subtitle: "Equivalence 14", emoji: "💡", color: "#8B5CF6", file: "eq14c-guessing-with-hints.html", category: "Equivalence 14" },
+      { id: "eq14d", num: "EQ14D", title: "Rules Actions Functions", subtitle: "Equivalence 14", emoji: "🎯", color: "#8B5CF6", file: "eq14d-rules-actions-functions.html", category: "Equivalence 14" },
+      { id: "eq14e", num: "EQ14E", title: "Sd Function Pre Class", subtitle: "Equivalence 14", emoji: "🛠️", color: "#8B5CF6", file: "eq14e-sd-function-pre-class.html", category: "Equivalence 14" },
+      { id: "eq14f", num: "EQ14F", title: "Sd Function Post Class", subtitle: "Equivalence 14", emoji: "🛠️", color: "#8B5CF6", file: "eq14f-sd-function-post-class.html", category: "Equivalence 14" },
+      { id: "eq14g", num: "EQ14G", title: "Rules Function Synonyms", subtitle: "Equivalence 14", emoji: "🛠️", color: "#8B5CF6", file: "eq14g-rules-function-synonyms.html", category: "Equivalence 14" },
+      { id: "eq14h", num: "EQ14H", title: "Discriminative Synonyms", subtitle: "Equivalence 14", emoji: "🔗", color: "#8B5CF6", file: "eq14h-discriminative-synonyms.html", category: "Equivalence 14" },
+      { id: "eq14i", num: "EQ14I", title: "Sorting Cards", subtitle: "Equivalence 14", emoji: "🃏", color: "#8B5CF6", file: "eq14i-sorting-cards.html", category: "Equivalence 14" },
+      { id: "eq14j", num: "EQ14J", title: "Feature Class Generalization", subtitle: "Equivalence 14", emoji: "🎲", color: "#8B5CF6", file: "eq14j-feature-class-generalization.html", category: "Equivalence 14" },
+      { id: "eq14k", num: "EQ14K", title: "Function Class Generalization", subtitle: "Equivalence 14", emoji: "🛠️", color: "#8B5CF6", file: "eq14k-function-class-generalization.html", category: "Equivalence 14" },
+      { id: "eq14l", num: "EQ14L", title: "Guessing Contents", subtitle: "Equivalence 14", emoji: "❓", color: "#8B5CF6", file: "eq14l-guessing-contents.html", category: "Equivalence 14" },
+      { id: "eq14m", num: "EQ14M", title: "Locating Objects by Category", subtitle: "Equivalence 14", emoji: "🎲", color: "#8B5CF6", file: "eq14m-locating-objects-by-category.html", category: "Equivalence 14" },
+      { id: "eq14n", num: "EQ14N", title: "Musical Chords", subtitle: "Equivalence 14", emoji: "🎵", color: "#8B5CF6", file: "eq14n-musical-chords.html", category: "Equivalence 14" },
+      { id: "eq14t", num: "EQ14T", title: "Dual Context Chains", subtitle: "Equivalence 14", emoji: "🪞", color: "#8B5CF6", file: "eq14t-dual-context-chains.html", category: "Equivalence 14" },
+      { id: "eq14u", num: "EQ14U", title: "Tool Problem Solving", subtitle: "Equivalence 14", emoji: "🧩", color: "#8B5CF6", file: "eq14u-tool-problem-solving.html", category: "Equivalence 14" },
+      { id: "eq14v", num: "EQ14V", title: "Respondent Auditory", subtitle: "Equivalence 14", emoji: "👂", color: "#8B5CF6", file: "eq14v-respondent-auditory.html", category: "Equivalence 14" },
+      { id: "eq14w", num: "EQ14W", title: "Cross Sensory Metaphors", subtitle: "Equivalence 14", emoji: "🎭", color: "#8B5CF6", file: "eq14w-cross-sensory-metaphors.html", category: "Equivalence 14" },
+      { id: "eq14x", num: "EQ14X", title: "Ordering From Menu", subtitle: "Equivalence 14", emoji: "🔢", color: "#8B5CF6", file: "eq14x-ordering-from-menu.html", category: "Equivalence 14" },
+      { id: "eq14y", num: "EQ14Y", title: "Multiple Sensory Tacting", subtitle: "Equivalence 14", emoji: "🏷️", color: "#8B5CF6", file: "eq14y-multiple-sensory-tacting.html", category: "Equivalence 14" },
+      { id: "eq14z", num: "EQ14Z", title: "Cognitive Defusion", subtitle: "Equivalence 14", emoji: "🍃", color: "#8B5CF6", file: "eq14z-cognitive-defusion.html", category: "Equivalence 14" },
+      { id: "p11a", num: "11A", title: "Animal Sorter", subtitle: "Series 11", emoji: "🐾", color: "#0EA5E9", file: "p11a-animal-sorter.html", category: "Series 11" },
+      { id: "p11b", num: "11B", title: "Family Relations", subtitle: "Series 11", emoji: "👪", color: "#0EA5E9", file: "p11b-family-relations.html", category: "Series 11" },
+      { id: "p11c", num: "11C", title: "Transportation Sorter", subtitle: "Series 11", emoji: "🚗", color: "#0EA5E9", file: "p11c-transportation-sorter.html", category: "Series 11" },
+      { id: "p11d", num: "11D", title: "Perspective Space", subtitle: "Series 11", emoji: "👁️", color: "#0EA5E9", file: "p11d-perspective-space.html", category: "Series 11" },
+      { id: "p11e", num: "11E", title: "Perspective Space Time", subtitle: "Series 11", emoji: "👁️", color: "#0EA5E9", file: "p11e-perspective-space-time.html", category: "Series 11" },
+      { id: "p11f", num: "11F", title: "Story Switcher", subtitle: "Series 11", emoji: "📖", color: "#0EA5E9", file: "p11f-story-switcher.html", category: "Series 11" },
+      { id: "p11g", num: "11G", title: "Meal Maker", subtitle: "Series 11", emoji: "🍽️", color: "#0EA5E9", file: "p11g-meal-maker.html", category: "Series 11" },
+      { id: "p11h", num: "11H", title: "Feelings in Context", subtitle: "Series 11", emoji: "💗", color: "#0EA5E9", file: "p11h-feelings-in-context.html", category: "Series 11" },
+      { id: "p11i", num: "11I", title: "Time Order", subtitle: "Series 11", emoji: "⏰", color: "#0EA5E9", file: "p11i-time-order.html", category: "Series 11" },
+      { id: "p11j", num: "11J", title: "Elsewhere Eyes", subtitle: "Series 11", emoji: "🎲", color: "#0EA5E9", file: "p11j-elsewhere-eyes.html", category: "Series 11" },
+      { id: "p11k", num: "11K", title: "Place Finder", subtitle: "Series 11", emoji: "📍", color: "#0EA5E9", file: "p11k-place-finder.html", category: "Series 11" },
+      { id: "p11l", num: "11L", title: "Tactile Feelings", subtitle: "Series 11", emoji: "💗", color: "#0EA5E9", file: "p11l-tactile-feelings.html", category: "Series 11" },
+      { id: "p11m", num: "11M", title: "Guessing Emotions", subtitle: "Series 11", emoji: "😊", color: "#0EA5E9", file: "p11m-guessing-emotions.html", category: "Series 11" },
+      { id: "p12g", num: "12G", title: "Unit Conversion", subtitle: "Series 12", emoji: "📏", color: "#14B8A6", file: "p12g-unit-conversion.html", category: "Series 12" },
+      { id: "p12h", num: "12H", title: "Entities Acronyms", subtitle: "Series 12", emoji: "🔤", color: "#14B8A6", file: "p12h-entities-acronyms.html", category: "Series 12" },
+      { id: "p12i", num: "12I", title: "Memory Codes", subtitle: "Series 12", emoji: "🔐", color: "#14B8A6", file: "p12i-memory-codes.html", category: "Series 12" },
+      { id: "p12j", num: "12J", title: "Element Match", subtitle: "Series 12", emoji: "⚗️", color: "#14B8A6", file: "p12j-element-match.html", category: "Series 12" },
+      { id: "p12k", num: "12K", title: "Compound Match", subtitle: "Series 12", emoji: "🧪", color: "#14B8A6", file: "p12k-compound-match.html", category: "Series 12" },
+      { id: "p12l", num: "12L", title: "Money Match", subtitle: "Series 12", emoji: "💰", color: "#14B8A6", file: "p12l-money-match.html", category: "Series 12" },
+      { id: "p12m", num: "12M", title: "Synonym Twister", subtitle: "Series 12", emoji: "🔗", color: "#14B8A6", file: "p12m-synonym-twister.html", category: "Series 12" },
+      { id: "p12n", num: "12N", title: "Emotion Detective", subtitle: "Series 12", emoji: "😊", color: "#14B8A6", file: "p12n-emotion-detective.html", category: "Series 12" },
+      { id: "p12o", num: "12O", title: "Say it Without Words", subtitle: "Series 12", emoji: "🎲", color: "#14B8A6", file: "p12o-say-it-without-words.html", category: "Series 12" },
+      { id: "p12p", num: "12P", title: "Secret Code", subtitle: "Series 12", emoji: "🔐", color: "#14B8A6", file: "p12p-secret-code.html", category: "Series 12" },
+      { id: "p12q", num: "12Q", title: "Smart Shopper", subtitle: "Series 12", emoji: "🎲", color: "#14B8A6", file: "p12q-smart-shopper.html", category: "Series 12" },
+      { id: "p12r", num: "12R", title: "Community Crew", subtitle: "Series 12", emoji: "📏", color: "#14B8A6", file: "p12r-community-crew.html", category: "Series 12" },
+      { id: "p12s", num: "12S", title: "Whats it for", subtitle: "Series 12", emoji: "🎲", color: "#14B8A6", file: "p12s-whats-it-for.html", category: "Series 12" },
+      { id: "p12t", num: "12T", title: "Silly Signals", subtitle: "Series 12", emoji: "🚦", color: "#14B8A6", file: "p12t-silly-signals.html", category: "Series 12" },
+      { id: "p12u", num: "12U", title: "Pattern Swap", subtitle: "Series 12", emoji: "🔁", color: "#14B8A6", file: "p12u-pattern-swap.html", category: "Series 12" },
+      { id: "p12v", num: "12V", title: "Decoder Ring", subtitle: "Series 12", emoji: "🔐", color: "#14B8A6", file: "p12v-decoder-ring.html", category: "Series 12" },
+      { id: "p41", num: "41", title: "Question Quest", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p41-question-quest.html", category: "Skills" },
+      { id: "p43", num: "43", title: "Art Detective", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p43-art-detective.html", category: "Skills" },
+      { id: "p44", num: "44", title: "Chat Starter", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p44-chat-starter.html", category: "Skills" },
+      { id: "p45", num: "45", title: "Sharp Eyes", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p45-sharp-eyes.html", category: "Skills" },
+      { id: "p46", num: "46", title: "Picture Memory", subtitle: "Skills", emoji: "🧠", color: "#10B981", file: "p46-picture-memory.html", category: "Skills" },
+      { id: "p47", num: "47", title: "Odd One Out", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p47-odd-one-out.html", category: "Skills" },
+      { id: "p48", num: "48", title: "Picture Puzzles", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p48-picture-puzzles.html", category: "Skills" },
+      { id: "p49", num: "49", title: "What Am I", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p49-what-am-i.html", category: "Skills" },
+      { id: "p50", num: "50", title: "Memory Chain", subtitle: "Skills", emoji: "🧠", color: "#10B981", file: "p50-memory-chain.html", category: "Skills" },
+      { id: "p51", num: "51", title: "Stay On Track", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p51-stay-on-track.html", category: "Skills" },
+      { id: "p52", num: "52", title: "Vehicle Spotter", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p52-vehicle-spotter.html", category: "Skills" },
+      { id: "p53", num: "53", title: "Dress Right", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p53-dress-right.html", category: "Skills" },
+      { id: "p54", num: "54", title: "Riddle Solver", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p54-riddle-solver.html", category: "Skills" },
+      { id: "p55", num: "55", title: "Word Problems", subtitle: "Skills", emoji: "🧩", color: "#10B981", file: "p55-word-problems.html", category: "Skills" },
+      { id: "p56", num: "56", title: "Feeling Finder", subtitle: "Skills", emoji: "💗", color: "#10B981", file: "p56-feeling-finder.html", category: "Skills" },
+      { id: "p57", num: "57", title: "Sign Spotter", subtitle: "Skills", emoji: "🎲", color: "#10B981", file: "p57-sign-spotter.html", category: "Skills" },
+      { id: "tr13a", num: "TR13A", title: "Scent Discrimination", subtitle: "Transformation 13", emoji: "🌸", color: "#F97316", file: "tr13a-scent-discrimination.html", category: "Transformation 13" },
+      { id: "tr13b", num: "TR13B", title: "Music Genres", subtitle: "Transformation 13", emoji: "🎵", color: "#F97316", file: "tr13b-music-genres.html", category: "Transformation 13" },
+      { id: "tr13c", num: "TR13C", title: "Arbitrary Meal", subtitle: "Transformation 13", emoji: "🍽️", color: "#F97316", file: "tr13c-arbitrary-meal.html", category: "Transformation 13" },
+      { id: "tr13d", num: "TR13D", title: "Lost Item", subtitle: "Transformation 13", emoji: "🔎", color: "#F97316", file: "tr13d-lost-item.html", category: "Transformation 13" },
+      { id: "tr13e", num: "TR13E", title: "Symbolic Animals", subtitle: "Transformation 13", emoji: "🐾", color: "#F97316", file: "tr13e-symbolic-animals.html", category: "Transformation 13" },
+      { id: "tr13f", num: "TR13F", title: "Perspective Reversal", subtitle: "Transformation 13", emoji: "👁️", color: "#F97316", file: "tr13f-perspective-reversal.html", category: "Transformation 13" },
+      { id: "tr13g", num: "TR13G", title: "Here There Reversal", subtitle: "Transformation 13", emoji: "🔀", color: "#F97316", file: "tr13g-here-there-reversal.html", category: "Transformation 13" },
+      { id: "tr13h", num: "TR13H", title: "Then Later Reversal", subtitle: "Transformation 13", emoji: "🔀", color: "#F97316", file: "tr13h-then-later-reversal.html", category: "Transformation 13" },
+      { id: "tr13i", num: "TR13I", title: "I-Spy Arbitrary", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13i-ispy-arbitrary.html", category: "Transformation 13" },
+      { id: "tr13j", num: "TR13J", title: "Iyou Herethere Reversal", subtitle: "Transformation 13", emoji: "🔀", color: "#F97316", file: "tr13j-iyou-herethere-reversal.html", category: "Transformation 13" },
+      { id: "tr13k", num: "TR13K", title: "Arbitrary Coordination", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13k-arbitrary-coordination.html", category: "Transformation 13" },
+      { id: "tr13k2", num: "TR13K2", title: "Arbitrary Nonarbitrary", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13k2-arbitrary-nonarbitrary.html", category: "Transformation 13" },
+      { id: "tr13l", num: "TR13L", title: "Following Directions", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13l-following-directions.html", category: "Transformation 13" },
+      { id: "tr13m", num: "TR13M", title: "Bigger", subtitle: "Transformation 13", emoji: "📐", color: "#F97316", file: "tr13m-bigger.html", category: "Transformation 13" },
+      { id: "tr13n", num: "TR13N", title: "Faster", subtitle: "Transformation 13", emoji: "⚡", color: "#F97316", file: "tr13n-faster.html", category: "Transformation 13" },
+      { id: "tr13o", num: "TR13O", title: "Pattern Completion", subtitle: "Transformation 13", emoji: "🔁", color: "#F97316", file: "tr13o-pattern-completion.html", category: "Transformation 13" },
+      { id: "tr13p", num: "TR13P", title: "Opposites", subtitle: "Transformation 13", emoji: "🔄", color: "#F97316", file: "tr13p-opposites.html", category: "Transformation 13" },
+      { id: "tr13q", num: "TR13Q", title: "Opposite Patterns", subtitle: "Transformation 13", emoji: "🔁", color: "#F97316", file: "tr13q-opposite-patterns.html", category: "Transformation 13" },
+      { id: "tr13q2", num: "TR13Q2", title: "Pattern Completion", subtitle: "Transformation 13", emoji: "🔁", color: "#F97316", file: "tr13q2-pattern-completion.html", category: "Transformation 13" },
+      { id: "tr13r", num: "TR13R", title: "Find Different", subtitle: "Transformation 13", emoji: "🔍", color: "#F97316", file: "tr13r-find-different.html", category: "Transformation 13" },
+      { id: "tr13s", num: "TR13S", title: "Dancing Different", subtitle: "Transformation 13", emoji: "🔍", color: "#F97316", file: "tr13s-dancing-different.html", category: "Transformation 13" },
+      { id: "tr13t", num: "TR13T", title: "Inside Together", subtitle: "Transformation 13", emoji: "📥", color: "#F97316", file: "tr13t-inside-together.html", category: "Transformation 13" },
+      { id: "tr13t2", num: "TR13T2", title: "Nesting Symbols", subtitle: "Transformation 13", emoji: "🪆", color: "#F97316", file: "tr13t2-nesting-symbols.html", category: "Transformation 13" },
+      { id: "tr13u", num: "TR13U", title: "Here There", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13u-here-there.html", category: "Transformation 13" },
+      { id: "tr13v", num: "TR13V", title: "Tactile Search", subtitle: "Transformation 13", emoji: "✋", color: "#F97316", file: "tr13v-tactile-search.html", category: "Transformation 13" },
+      { id: "tr13w", num: "TR13W", title: "Rough Smooth", subtitle: "Transformation 13", emoji: "🎲", color: "#F97316", file: "tr13w-rough-smooth.html", category: "Transformation 13" },
+      { id: "tr13x", num: "TR13X", title: "Feel Opposite", subtitle: "Transformation 13", emoji: "🔄", color: "#F97316", file: "tr13x-feel-opposite.html", category: "Transformation 13" },
+      { id: "tr14a", num: "TR14A", title: "Tactile Spoken Word", subtitle: "Transformation 14", emoji: "✋", color: "#EC4899", file: "tr14a-tactile-spoken-word.html", category: "Transformation 14" },
+      { id: "tr14b", num: "TR14B", title: "Arbitrary I You", subtitle: "Transformation 14", emoji: "🎲", color: "#EC4899", file: "tr14b-arbitrary-i-you.html", category: "Transformation 14" },
+      { id: "tr14c", num: "TR14C", title: "Visual Hierarchy", subtitle: "Transformation 14", emoji: "🖼️", color: "#EC4899", file: "tr14c-visual-hierarchy.html", category: "Transformation 14" },
+      { id: "tr14d", num: "TR14D", title: "Double Reversal Actions", subtitle: "Transformation 14", emoji: "🔀", color: "#EC4899", file: "tr14d-double-reversal-actions.html", category: "Transformation 14" },
+      { id: "tr14e", num: "TR14E", title: "Selecting a Song", subtitle: "Transformation 14", emoji: "🎶", color: "#EC4899", file: "tr14e-selecting-a-song.html", category: "Transformation 14" },
+      { id: "tr14f", num: "TR14F", title: "Arbitrary Song Labels", subtitle: "Transformation 14", emoji: "🎶", color: "#EC4899", file: "tr14f-arbitrary-song-labels.html", category: "Transformation 14" },
+      { id: "tr14g", num: "TR14G", title: "Auditory Top Down", subtitle: "Transformation 14", emoji: "👂", color: "#EC4899", file: "tr14g-auditory-top-down.html", category: "Transformation 14" },
+      { id: "tr14h", num: "TR14H", title: "Gustatory Imaging", subtitle: "Transformation 14", emoji: "🍴", color: "#EC4899", file: "tr14h-gustatory-imaging.html", category: "Transformation 14" },
+      { id: "tr14i", num: "TR14I", title: "Gustatory Preferences", subtitle: "Transformation 14", emoji: "🍴", color: "#EC4899", file: "tr14i-gustatory-preferences.html", category: "Transformation 14" },
+      { id: "tr14j", num: "TR14J", title: "Gustatory Menu Selection", subtitle: "Transformation 14", emoji: "🍴", color: "#EC4899", file: "tr14j-gustatory-menu-selection.html", category: "Transformation 14" },
+      { id: "tr14k", num: "TR14K", title: "Playing with Tastes", subtitle: "Transformation 14", emoji: "👅", color: "#EC4899", file: "tr14k-playing-with-tastes.html", category: "Transformation 14" },
+      { id: "tr14l", num: "TR14L", title: "Smelling a Story", subtitle: "Transformation 14", emoji: "📖", color: "#EC4899", file: "tr14l-smelling-a-story.html", category: "Transformation 14" },
+      { id: "tr14m", num: "TR14M", title: "Arbitrary Olfactory Preferences", subtitle: "Transformation 14", emoji: "👃", color: "#EC4899", file: "tr14m-arbitrary-olfactory-preferences.html", category: "Transformation 14" },
+      { id: "tr14n", num: "TR14N", title: "Smelling Fictional Characters", subtitle: "Transformation 14", emoji: "👃", color: "#EC4899", file: "tr14n-smelling-fictional-characters.html", category: "Transformation 14" },
+      { id: "tr14o", num: "TR14O", title: "Olfactory Hierarchy", subtitle: "Transformation 14", emoji: "👃", color: "#EC4899", file: "tr14o-olfactory-hierarchy.html", category: "Transformation 14" },
+      { id: "tr14p", num: "TR14P", title: "Gustatory Auditory Reversal", subtitle: "Transformation 14", emoji: "🍴", color: "#EC4899", file: "tr14p-gustatory-auditory-reversal.html", category: "Transformation 14" },
+      { id: "tr14q", num: "TR14Q", title: "Creative Flexibility", subtitle: "Transformation 14", emoji: "💫", color: "#EC4899", file: "tr14q-creative-flexibility.html", category: "Transformation 14" },
+      { id: "tr14r", num: "TR14R", title: "Abstract Possession", subtitle: "Transformation 14", emoji: "📦", color: "#EC4899", file: "tr14r-abstract-possession.html", category: "Transformation 14" },
+      { id: "tr14s", num: "TR14S", title: "Committed Action", subtitle: "Transformation 14", emoji: "🎯", color: "#EC4899", file: "tr14s-committed-action.html", category: "Transformation 14" },
+      { id: "tr14t", num: "TR14T", title: "Defusion", subtitle: "Transformation 14", emoji: "🍃", color: "#EC4899", file: "tr14t-defusion.html", category: "Transformation 14" },
+      { id: "tr14u", num: "TR14U", title: "Defusion with Art", subtitle: "Transformation 14", emoji: "🍃", color: "#EC4899", file: "tr14u-defusion-with-art.html", category: "Transformation 14" },
+      { id: "tr14v", num: "TR14V", title: "Self As Context", subtitle: "Transformation 14", emoji: "🪞", color: "#EC4899", file: "tr14v-self-as-context.html", category: "Transformation 14" },
+      { id: "tr14w", num: "TR14W", title: "Values Goals Actions", subtitle: "Transformation 14", emoji: "⭐", color: "#EC4899", file: "tr14w-values-goals-actions.html", category: "Transformation 14" },
+      { id: "tr14x", num: "TR14X", title: "Values Perspectives", subtitle: "Transformation 14", emoji: "👁️", color: "#EC4899", file: "tr14x-values-perspectives.html", category: "Transformation 14" },
+      { id: "tr14y", num: "TR14Y", title: "Acceptance", subtitle: "Transformation 14", emoji: "🤲", color: "#EC4899", file: "tr14y-acceptance.html", category: "Transformation 14" },
+      { id: "tr14z", num: "TR14Z", title: "I Contact", subtitle: "Transformation 14", emoji: "🏷️", color: "#EC4899", file: "tr14z-i-contact.html", category: "Transformation 14" },
     ];
 
-    const CATEGORIES = [
-      { name: "Translation",     color: "#22C55E", range: "1–2",           desc: "Comparative & coordination frames" },
-      { name: "Equivalence",     color: "#8B5CF6", range: "3–6, 19, 29",  desc: "Identity, cross-modal, analogy, taste" },
-      { name: "Abstraction",     color: "#2563EB", range: "7–10, 30",     desc: "Categorical, interrogative, inductive, feature" },
-      { name: "Inference",       color: "#DC2626", range: "11–14, 31",    desc: "Conditional, reverse, synonym, metaphor, location" },
-      { name: "Social",          color: "#0D9488", range: "15–16",        desc: "Creative problem-solving, pragmatic disclosure" },
-      { name: "Language",        color: "#6D28D9", range: "17–18, 20",    desc: "Description, naming, pronouns" },
-      { name: "Transformation",  color: "#EA580C", range: "21–28, 32",    desc: "Spatial, temporal, opposition, deictic, emotional" },
-    ];
+    // ===== SEQUENCE + GATING CONFIG =====
+    const WINDOW = 12; // ~ a dozen unmastered games open at once
+    const RETENTION_DAYS = 7;
+    const BUCKET = { "Series 11":2, "Series 12":3, "Equivalence 13":4, "Equivalence 14":5, "Transformation 13":6, "Transformation 14":7, "Skills":8 };
+    const BUCKET_LABEL = ["Core Sequence","Extended (P11-P32)","Series 11","Series 12","Equivalence 13","Equivalence 14","Transformation 13","Transformation 14","Skills"];
+    function bucketIndex(p) {
+      if (/^p([1-9]|10)$/.test(p.id)) return 0;
+      if (/^p(1[1-9]|2[0-9]|3[0-2])$/.test(p.id)) return 1;
+      return BUCKET[p.category] !== undefined ? BUCKET[p.category] : 9;
+    }
+    function natKey(p) {
+      const m = p.id.match(/^([a-z]+)(\d+)([a-z]*)(\d*)$/);
+      const num = m ? parseInt(m[2] || "0", 10) : 0;
+      const lett = m ? m[3] : "";
+      const sub = m ? parseInt(m[4] || "0", 10) : 0;
+      return [bucketIndex(p), num, lett, sub];
+    }
+    const SEQ = [...PROGRAMS].sort((a, b) => {
+      const ka = natKey(a), kb = natKey(b);
+      for (let i = 0; i < ka.length; i++) { if (ka[i] < kb[i]) return -1; if (ka[i] > kb[i]) return 1; }
+      return 0;
+    });
 
-    // ── ACHIEVEMENTS ────────────────────────────────────────
+    function gameLabel(num) { return /^\d/.test(String(num)) ? "P" + num : String(num); }
+    function isMastered(progress, id) { return !!(progress.programs[id] && progress.programs[id].mastery); }
+    function lastPlayed(progress, id) {
+      const s = (progress.programs[id] && progress.programs[id].sessions) || [];
+      return s.length ? new Date(s[s.length - 1].date).getTime() : 0;
+    }
+
+    // ===== UNLOCKED allowlist =====
+    // Games vetted and online today are always unlocked; everything else is locked
+    // until vetted (add its id here). Overlap resolves to unlocked.
+    // Seed: live numbered set P1-P32 plus the validated Series-12 set (p12m-p12v).
+    const UNLOCKED_IDS = new Set([
+      ...Array.from({length:32},(_,i)=>"p"+(i+1)),
+      "p12m","p12n","p12o","p12p","p12q","p12r","p12s","p12t","p12u","p12v",
+    ]);
+
+    // Status: 'mastered' | 'open' | 'locked'. Open = on the allowlist (or mastered).
+    // Locked = not yet vetted/online. As games are vetted, add their id to UNLOCKED_IDS.
+    function computeStatus(progress) {
+      const status = {};
+      SEQ.forEach((p) => {
+        if (isMastered(progress, p.id)) status[p.id] = "mastered";
+        else if (UNLOCKED_IDS.has(p.id)) status[p.id] = "open";
+        else status[p.id] = "locked";
+      });
+      return status;
+    }
+    function retentionPicks(progress, status, n) {
+      const now = Date.now();
+      const mastered = SEQ.filter(p => status[p.id] === "mastered");
+      const due = mastered.map(p => ({ p, last: lastPlayed(progress, p.id) }))
+        .filter(x => now - x.last > RETENTION_DAYS * 86400000)
+        .sort((a, b) => a.last - b.last);
+      return due.slice(0, n).map(x => x.p);
+    }
+
+    // ===== CATEGORIES (derived dynamically from the array) =====
+    const CAT_COLORS = { "Translation":"#22C55E","Equivalence":"#8B5CF6","Abstraction":"#2563EB","Inference":"#DC2626","Social":"#0D9488","Language":"#6D28D9","Transformation":"#EA580C","Series 11":"#0EA5E9","Series 12":"#14B8A6","Equivalence 13":"#6366F1","Equivalence 14":"#8B5CF6","Transformation 13":"#F97316","Transformation 14":"#EC4899","Skills":"#10B981" };
+    const CATEGORIES = (() => {
+      const seen = []; const order = {};
+      SEQ.forEach(p => { if (order[p.category] === undefined) { order[p.category] = seen.length; seen.push(p.category); } });
+      return seen.map(name => ({ name, color: CAT_COLORS[name] || "#64748B" }));
+    })();
+
+    // ===== ACHIEVEMENTS (thresholds scale to full suite) =====
+    const TOTAL = PROGRAMS.length;
+    const masteredN = (p) => Object.values(p.programs).filter(x => x.mastery).length;
+    const triedN = (p) => Object.keys(p.programs).length;
     const ACHIEVEMENTS = [
-      { id: "first_steps",     emoji: "👣", title: "First Steps",       desc: "Complete your first session",           check: (p) => p.totalSessions >= 1 },
-      { id: "explorer",        emoji: "🗺️", title: "Explorer",          desc: "Try 10 different programs",             check: (p) => Object.keys(p.programs).length >= 10 },
-      { id: "globe_trotter",   emoji: "🌍", title: "Globe Trotter",     desc: "Try all 32 programs",                   check: (p) => Object.keys(p.programs).length >= 32 },
-      { id: "five_streak",     emoji: "🔥", title: "On Fire",           desc: "5-day play streak",                     check: (p) => p.streak.best >= 5 },
-      { id: "ten_sessions",    emoji: "⭐", title: "Dedicated",         desc: "Complete 10 sessions",                  check: (p) => p.totalSessions >= 10 },
-      { id: "mastery_1",       emoji: "🥇", title: "First Mastery",     desc: "Master any program",                    check: (p) => Object.values(p.programs).some(pr => pr.mastery) },
-      { id: "mastery_5",       emoji: "🏆", title: "Five Star",         desc: "Master 5 programs",                     check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 5 },
-      { id: "mastery_10",      emoji: "💫", title: "Ten Strong",        desc: "Master 10 programs",                    check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 10 },
-      { id: "mastery_all",     emoji: "👑", title: "FrameShift Master", desc: "Master all 32 programs",                check: (p) => Object.values(p.programs).filter(pr => pr.mastery).length >= 32 },
-      { id: "equiv_complete",  emoji: "🔗", title: "Equivalence Pro",   desc: "Master all equivalence programs",       check: (p) => ["p3","p4","p5","p6","p19","p29"].every(id => p.programs[id]?.mastery) },
-      { id: "abstraction_complete", emoji: "🧠", title: "Abstract Thinker", desc: "Master all abstraction programs",   check: (p) => ["p7","p8","p9","p10","p30"].every(id => p.programs[id]?.mastery) },
-      { id: "inference_complete", emoji: "🔮", title: "Master Deducer",  desc: "Master all inference programs",         check: (p) => ["p11","p12","p13","p14","p31"].every(id => p.programs[id]?.mastery) },
-      { id: "transform_complete", emoji: "🔄", title: "Shapeshifter",   desc: "Master all transformation programs",    check: (p) => ["p21","p22","p23","p24","p25","p26","p27","p28","p32"].every(id => p.programs[id]?.mastery) },
-      { id: "twenty_five",     emoji: "💎", title: "Quarter Century",   desc: "Complete 25 sessions",                  check: (p) => p.totalSessions >= 25 },
-      { id: "fifty_sessions",  emoji: "🎯", title: "Fifty Strong",     desc: "Complete 50 sessions",                  check: (p) => p.totalSessions >= 50 },
+      { id:"first_steps", emoji:"👣", title:"First Steps", desc:"Complete your first session", check:(p)=>p.totalSessions>=1 },
+      { id:"explorer", emoji:"🗺️", title:"Explorer", desc:"Try 10 different games", check:(p)=>triedN(p)>=10 },
+      { id:"twenty_five_sess", emoji:"💎", title:"Quarter Century", desc:"Complete 25 sessions", check:(p)=>p.totalSessions>=25 },
+      { id:"fifty_sess", emoji:"🎯", title:"Fifty Strong", desc:"Complete 50 sessions", check:(p)=>p.totalSessions>=50 },
+      { id:"five_streak", emoji:"🔥", title:"On Fire", desc:"5-day play streak", check:(p)=>p.streak.best>=5 },
+      { id:"mastery_1", emoji:"🥇", title:"First Mastery", desc:"Master any game", check:(p)=>masteredN(p)>=1 },
+      { id:"mastery_10", emoji:"💫", title:"Ten Strong", desc:"Master 10 games", check:(p)=>masteredN(p)>=10 },
+      { id:"mastery_25", emoji:"🏆", title:"Twenty-Five Mastered", desc:"Master 25 games", check:(p)=>masteredN(p)>=25 },
+      { id:"mastery_half", emoji:"⭐", title:"Halfway", desc:"Master half the suite", check:(p)=>masteredN(p)>=Math.ceil(TOTAL/2) },
+      { id:"mastery_all", emoji:"👑", title:"FrameShift Master", desc:"Master every game", check:(p)=>masteredN(p)>=TOTAL },
     ];
 
-    // ── MASTERY RING ────────────────────────────────────────
-    const MasteryRing = ({ pct, color, children, size = 48 }) => (
-      <div className="mastery-ring" style={{ '--ring-color': color, '--ring-pct': `${pct}%`, width: size, height: size }}>
-        <div className="bg-white rounded-full w-full h-full flex items-center justify-center">
-          {children}
-        </div>
-      </div>
-    );
-
-    // ── STAR RATING ─────────────────────────────────────────
+    // ===== UI ATOMS =====
     const Stars = ({ count }) => (
-      <div className="flex gap-0.5">
-        {[0,1,2].map(i => (
-          <span key={i} className={`text-sm ${i < count ? (count >= 3 ? "star-gold" : count >= 2 ? "star-silver" : "star-bronze") : "text-gray-300"}`}>★</span>
-        ))}
-      </div>
+      <div className="flex gap-0.5">{[0,1,2].map(i => (<span key={i} className={"text-sm " + (i < count ? "star-gold" : "text-gray-300")}>★</span>))}</div>
     );
 
-    // ── PROGRAM CARD ────────────────────────────────────────
-    const ProgramCard = ({ program, progress, index }) => {
-      const progData = progress.programs[program.id];
-      const sessions = progData?.sessions?.length || 0;
-      const mastery = progData?.mastery || false;
-      const bestTrain = progData?.bestScore?.train || 0;
-      const bestTest = progData?.bestScore?.test;
-      const hasTest = bestTest !== undefined && bestTest !== null;
-      const stars = mastery ? 3 : hasTest ? 2 : sessions > 0 ? 1 : 0;
-
-      // Mastery percentage (rough: train score / max possible)
-      const pct = mastery ? 100 : sessions > 0 ? Math.min(90, Math.round((bestTrain / 10) * 90)) : 0;
-
-      return (
-        <a href={program.file}
-          className="anim-fadein block rounded-2xl glass card-shadow border border-white border-opacity-60 p-4 hover:scale-[1.03] transition-all duration-200 group relative overflow-hidden"
-          style={{ animationDelay: `${index * 0.05}s` }}>
-          {/* Mastery glow */}
-          {mastery && <div className="absolute inset-0 anim-shimmer rounded-2xl pointer-events-none" />}
-
+    const ProgramCard = ({ program, status, index, bonus }) => {
+      const locked = status === "locked";
+      const mastered = status === "mastered";
+      const cls = locked ? "card-locked" : mastered ? "card-muted" : "";
+      const inner = (
+        <div className={"anim-fadein block rounded-2xl glass card-shadow border border-white border-opacity-60 p-4 relative overflow-hidden " + (locked ? "" : "hover:scale-[1.03] transition-all duration-200 group ") + (bonus ? "bonus-ring " : "")} style={{ animationDelay: (index*0.03) + "s" }}>
+          {mastered && !bonus && <div className="absolute inset-0 anim-shimmer rounded-2xl pointer-events-none" />}
           <div className="flex items-start gap-3">
-            <MasteryRing pct={pct} color={program.color} size={48}>
-              <span className="text-lg">{program.emoji}</span>
-            </MasteryRing>
+            <div className="mastery-ring" style={{ "--ring-color": program.color, "--ring-pct": (mastered?"100%":bonus?"100%":"0%"), width:48, height:48 }}>
+              <div className="bg-white rounded-full w-full h-full flex items-center justify-center"><span className="text-lg">{program.emoji}</span></div>
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="fredoka text-sm font-bold text-gray-400">P{program.num}</span>
-                <Stars count={stars} />
+                <span className="fredoka text-xs font-bold text-gray-400">{gameLabel(program.num)}</span>
+                {!locked && <Stars count={mastered ? 3 : 1} />}
+                {locked && <span className="text-xs nunito px-2 py-0.5 rounded-full lockbadge">🔒 Locked</span>}
+                {bonus && <span className="text-xs nunito px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">★ Bonus</span>}
               </div>
-              <h3 className="fredoka text-base font-bold text-gray-800 truncate group-hover:text-indigo-700 transition-colors">
-                {program.title}
-              </h3>
+              <h3 className={"fredoka text-base font-bold truncate " + (locked ? "text-gray-400" : "text-gray-800 group-hover:text-indigo-700")}>{program.title}</h3>
               <p className="nunito text-xs text-gray-500">{program.subtitle}</p>
-              {sessions > 0 && (
-                <div className="flex gap-2 mt-1">
-                  <span className="text-xs nunito px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                    {sessions} session{sessions !== 1 ? "s" : ""}
-                  </span>
-                  {mastery && (
-                    <span className="text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">
-                      ✓ Mastered
-                    </span>
-                  )}
-                </div>
-              )}
+              {mastered && !bonus && <span className="inline-block mt-1 text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">✓ Mastered</span>}
             </div>
           </div>
-        </a>
+        </div>
+      );
+      if (locked) return <div>{inner}</div>;
+      return <a href={program.file}>{inner}</a>;
+    };
+
+    const Section = ({ title, hint, children, defaultOpen=true, count }) => {
+      const [open, setOpen] = useState(defaultOpen);
+      return (
+        <div className="mb-6">
+          <button onClick={()=>setOpen(!open)} className="w-full flex items-center gap-2 mb-3 text-left">
+            <span className="fredoka text-lg font-bold text-gray-700">{title}</span>
+            {count !== undefined && <span className="nunito text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{count}</span>}
+            {hint && <span className="nunito text-xs text-gray-400">{hint}</span>}
+            <span className="ml-auto text-gray-400 text-sm">{open ? "▾" : "▸"}</span>
+          </button>
+          {open && children}
+        </div>
       );
     };
 
-    // ── ACHIEVEMENT BADGE ───────────────────────────────────
-    const AchievementBadge = ({ achievement, earned }) => (
-      <div className={`flex items-center gap-3 p-3 rounded-xl transition-all
-        ${earned ? "glass card-shadow border border-white border-opacity-60" : "bg-gray-100 bg-opacity-50 border border-gray-200 opacity-50"}`}>
-        <span className={`text-2xl ${earned ? "anim-badgepop" : "grayscale opacity-40"}`}>
-          {achievement.emoji}
-        </span>
-        <div className="flex-1 min-w-0">
-          <h4 className={`fredoka text-sm font-bold ${earned ? "text-gray-800" : "text-gray-400"}`}>
-            {achievement.title}
-          </h4>
-          <p className={`nunito text-xs ${earned ? "text-gray-600" : "text-gray-400"}`}>
-            {achievement.desc}
-          </p>
-        </div>
-        {earned && <span className="text-green-500 text-sm">✓</span>}
+    const Grid = ({ items, status, bonusIds }) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {items.map((prog, i) => (<ProgramCard key={prog.id} program={prog} status={status[prog.id]} index={i} bonus={bonusIds && bonusIds.has(prog.id)} />))}
       </div>
     );
 
-    // ── OVERVIEW STATS ──────────────────────────────────────
-    const OverviewStats = ({ progress }) => {
-      const totalSessions = progress.totalSessions;
-      const programsTried = Object.keys(progress.programs).length;
-      const programsMastered = Object.values(progress.programs).filter(p => p.mastery).length;
-      const streak = progress.streak.current;
-      const achievementsEarned = ACHIEVEMENTS.filter(a => a.check(progress)).length;
-
+    const OverviewStats = ({ progress, status }) => {
+      const openNow = SEQ.filter(p => status[p.id] === "open").length;
       const stats = [
-        { label: "Sessions", value: totalSessions, emoji: "📊" },
-        { label: "Programs Tried", value: `${programsTried}/32`, emoji: "🎮" },
-        { label: "Mastered", value: `${programsMastered}/32`, emoji: "⭐" },
-        { label: "Day Streak", value: streak, emoji: "🔥" },
-        { label: "Achievements", value: `${achievementsEarned}/${ACHIEVEMENTS.length}`, emoji: "🏅" },
+        { label:"Sessions", value: progress.totalSessions, emoji:"📊" },
+        { label:"Mastered", value: masteredN(progress) + "/" + TOTAL, emoji:"⭐" },
+        { label:"Open Now", value: openNow, emoji:"🎮" },
+        { label:"Day Streak", value: progress.streak.current, emoji:"🔥" },
+        { label:"Achievements", value: ACHIEVEMENTS.filter(a=>a.check(progress)).length + "/" + ACHIEVEMENTS.length, emoji:"🏅" },
       ];
-
       return (
         <div className="grid grid-cols-5 gap-2 sm:gap-3">
-          {stats.map((stat, i) => (
-            <div key={i} className="glass rounded-xl p-3 card-shadow border border-white border-opacity-60 text-center anim-fadein"
-              style={{ animationDelay: `${i * 0.06}s` }}>
-              <div className="text-xl mb-0.5">{stat.emoji}</div>
-              <div className="fredoka text-lg sm:text-xl font-bold text-gray-800">{stat.value}</div>
-              <div className="nunito text-[10px] sm:text-xs text-gray-500">{stat.label}</div>
+          {stats.map((s,i)=>(
+            <div key={i} className="glass rounded-xl p-3 card-shadow border border-white border-opacity-60 text-center anim-fadein" style={{animationDelay:(i*0.06)+"s"}}>
+              <div className="text-xl mb-0.5">{s.emoji}</div>
+              <div className="fredoka text-lg sm:text-xl font-bold text-gray-800">{s.value}</div>
+              <div className="nunito text-[10px] sm:text-xs text-gray-500">{s.label}</div>
             </div>
           ))}
         </div>
       );
     };
 
-    // ── CATEGORY TABS + PROGRESS BAR ────────────────────────
-    const CategoryProgress = ({ progress }) => {
-      return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {CATEGORIES.map(cat => {
-            const progs = PROGRAMS.filter(p => p.category === cat.name);
-            const mastered = progs.filter(p => progress.programs[p.id]?.mastery).length;
-            const pct = Math.round((mastered / progs.length) * 100);
-            return (
-              <div key={cat.name} className="glass rounded-xl px-3 py-2 card-shadow border border-white border-opacity-60">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                  <span className="fredoka text-xs text-gray-700 font-bold truncate">{cat.name}</span>
-                  <span className="nunito text-[10px] text-gray-400 ml-auto flex-shrink-0">P{cat.range}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-                </div>
-                <div className="nunito text-[10px] text-gray-500 mt-0.5">{mastered}/{progs.length} mastered</div>
+    const CategoryProgress = ({ progress }) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {CATEGORIES.map(cat => {
+          const progs = PROGRAMS.filter(p => p.category === cat.name);
+          const mastered = progs.filter(p => isMastered(progress, p.id)).length;
+          const pct = Math.round((mastered / progs.length) * 100);
+          return (
+            <div key={cat.name} className="glass rounded-xl px-3 py-2 card-shadow border border-white border-opacity-60">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                <span className="fredoka text-xs text-gray-700 font-bold truncate">{cat.name}</span>
               </div>
-            );
-          })}
-        </div>
-      );
-    };
+              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden"><div className="h-full rounded-full transition-all duration-700" style={{ width: pct + "%", backgroundColor: cat.color }} /></div>
+              <div className="nunito text-[10px] text-gray-500 mt-0.5">{mastered}/{progs.length} mastered</div>
+            </div>
+          );
+        })}
+      </div>
+    );
 
-    // ── MAIN APP ────────────────────────────────────────────
+    const AchievementBadge = ({ achievement, earned }) => (
+      <div className={"flex items-center gap-3 p-3 rounded-xl transition-all " + (earned ? "glass card-shadow border border-white border-opacity-60" : "bg-gray-100 bg-opacity-50 border border-gray-200 opacity-50")}>
+        <span className={"text-2xl " + (earned ? "anim-badgepop" : "grayscale opacity-40")}>{achievement.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <h4 className={"fredoka text-sm font-bold " + (earned ? "text-gray-800" : "text-gray-400")}>{achievement.title}</h4>
+          <p className={"nunito text-xs " + (earned ? "text-gray-600" : "text-gray-400")}>{achievement.desc}</p>
+        </div>
+        {earned && <span className="text-green-500 text-sm">✓</span>}
+      </div>
+    );
+
+    // ===== MAIN APP =====
     const FrameShiftHub = () => {
       const [progress, setProgress] = useState(defaultProgress());
-      const [tab, setTab] = useState("games"); // "games" | "achievements" | "tracker"
+      const [tab, setTab] = useState("games");
       const [showReset, setShowReset] = useState(false);
 
       useEffect(() => {
         setProgress(loadProgress());
-        // Listen for storage events (when games save data)
         const handler = () => setProgress(loadProgress());
-        window.addEventListener('storage', handler);
-        window.addEventListener('focus', handler); // reload on tab focus
-        return () => {
-          window.removeEventListener('storage', handler);
-          window.removeEventListener('focus', handler);
-        };
+        window.addEventListener("storage", handler);
+        window.addEventListener("focus", handler);
+        return () => { window.removeEventListener("storage", handler); window.removeEventListener("focus", handler); };
       }, []);
 
-      const handleReset = () => {
-        localStorage.removeItem(STORAGE_KEY);
-        setProgress(defaultProgress());
-        setShowReset(false);
-      };
+      const status = useMemo(() => computeStatus(progress), [progress]);
+      const openGames = useMemo(() => SEQ.filter(p => status[p.id] === "open"), [status]);
+      const masteredGames = useMemo(() => SEQ.filter(p => status[p.id] === "mastered"), [status]);
+      const lockedGames = useMemo(() => SEQ.filter(p => status[p.id] === "locked"), [status]);
+      const bonus = useMemo(() => retentionPicks(progress, status, 3), [progress, status]);
+      const bonusIds = new Set(bonus.map(p => p.id));
 
-      const earnedAchievements = ACHIEVEMENTS.filter(a => a.check(progress));
-      const unearnedAchievements = ACHIEVEMENTS.filter(a => !a.check(progress));
+      const handleReset = () => { localStorage.removeItem(STORAGE_KEY); setProgress(defaultProgress()); setShowReset(false); };
+      const earned = ACHIEVEMENTS.filter(a => a.check(progress));
+      const unearned = ACHIEVEMENTS.filter(a => !a.check(progress));
 
       return (
         <div className="min-h-screen p-4 sm:p-6 lg:p-8">
           <div className="max-w-6xl mx-auto">
-
-            {/* ── HEADER ────────────────────────────────── */}
             <header className="text-center mb-6 anim-fadein">
-              <div className="inline-block mb-2">
-                <h1 className="fredoka text-5xl sm:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500">
-                  FrameShift
-                </h1>
-              </div>
-              <p className="nunito text-gray-500 text-sm sm:text-base max-w-lg mx-auto">
-                Relational Frame Training Suite — 32 programs building language and reasoning through play
-              </p>
+              <h1 className="fredoka text-5xl sm:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500">FrameShift</h1>
+              <p className="nunito text-gray-500 text-sm sm:text-base max-w-lg mx-auto">Relational Frame Training Suite — {TOTAL} games, unlocking as you master each step</p>
               <p className="nunito text-xs text-gray-400 mt-1">Syntopic Systems</p>
             </header>
 
-            {/* ── OVERVIEW STATS ─────────────────────────── */}
-            <div className="mb-5">
-              <OverviewStats progress={progress} />
-            </div>
+            <div className="mb-5"><OverviewStats progress={progress} status={status} /></div>
+            <div className="mb-5"><CategoryProgress progress={progress} /></div>
 
-            {/* ── CATEGORY PROGRESS ──────────────────────── */}
-            <div className="mb-5">
-              <CategoryProgress progress={progress} />
-            </div>
-
-            {/* ── TABS ───────────────────────────────────── */}
             <div className="flex gap-2 justify-center mb-5">
-              {[
-                { key: "games", label: "🎮 Programs", count: null },
-                { key: "achievements", label: "🏅 Achievements", count: earnedAchievements.length },
-                { key: "tracker", label: "📊 Session Log", count: progress.totalSessions },
-              ].map(t => (
-                <button key={t.key} onClick={() => setTab(t.key)}
-                  className={`px-4 py-2 rounded-xl fredoka text-sm font-bold transition-all
-                    ${tab === t.key
-                      ? "glass card-shadow text-indigo-700 border border-indigo-200"
-                      : "text-gray-400 hover:text-gray-600 hover:bg-white hover:bg-opacity-40"}`}>
-                  {t.label}
-                  {t.count !== null && t.count > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">{t.count}</span>
-                  )}
+              {[{key:"games",label:"🎮 Play"},{key:"achievements",label:"🏅 Achievements",count:earned.length},{key:"tracker",label:"📊 Session Log",count:progress.totalSessions}].map(t => (
+                <button key={t.key} onClick={()=>setTab(t.key)} className={"px-4 py-2 rounded-xl fredoka text-sm font-bold transition-all " + (tab===t.key ? "glass card-shadow text-indigo-700 border border-indigo-200" : "text-gray-400 hover:text-gray-600 hover:bg-white hover:bg-opacity-40")}>
+                  {t.label}{t.count!==undefined && t.count>0 && <span className="ml-1.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">{t.count}</span>}
                 </button>
               ))}
             </div>
 
-            {/* ── GAMES GRID ─────────────────────────────── */}
             {tab === "games" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {PROGRAMS.map((prog, i) => (
-                  <ProgramCard key={prog.id} program={prog} progress={progress} index={i} />
-                ))}
+              <div>
+                {bonus.length > 0 && (
+                  <Section title="★ Keep Sharp" hint="bonus rounds — revisit a mastered game for retention" count={bonus.length}>
+                    <Grid items={bonus} status={status} bonusIds={bonusIds} />
+                  </Section>
+                )}
+                <Section title="Open Now" hint="your current set — master these to unlock more" count={openGames.length}>
+                  {openGames.length > 0 ? <Grid items={openGames} status={status} /> : <p className="nunito text-sm text-gray-400">All open games mastered. New games will unlock as progress saves.</p>}
+                </Section>
+                {masteredGames.length > 0 && (
+                  <Section title="Completed" count={masteredGames.length} defaultOpen={false}>
+                    <Grid items={masteredGames} status={status} />
+                  </Section>
+                )}
+                {lockedGames.length > 0 && (
+                  <Section title="Locked" hint="unlock by mastering earlier games" count={lockedGames.length} defaultOpen={false}>
+                    <Grid items={lockedGames} status={status} />
+                  </Section>
+                )}
               </div>
             )}
 
-            {/* ── ACHIEVEMENTS ────────────────────────────── */}
             {tab === "achievements" && (
               <div>
-                {earnedAchievements.length > 0 && (
-                  <div className="mb-4">
-                    <h3 className="fredoka text-lg text-gray-700 mb-2">🏅 Earned</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {earnedAchievements.map(a => (
-                        <AchievementBadge key={a.id} achievement={a} earned={true} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <h3 className="fredoka text-lg text-gray-400 mb-2">🔒 Locked</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {unearnedAchievements.map(a => (
-                      <AchievementBadge key={a.id} achievement={a} earned={false} />
-                    ))}
-                  </div>
-                </div>
+                {earned.length > 0 && (<div className="mb-4"><h3 className="fredoka text-lg text-gray-700 mb-2">🏅 Earned</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{earned.map(a=>(<AchievementBadge key={a.id} achievement={a} earned={true} />))}</div></div>)}
+                <div><h3 className="fredoka text-lg text-gray-400 mb-2">🔒 Locked</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{unearned.map(a=>(<AchievementBadge key={a.id} achievement={a} earned={false} />))}</div></div>
               </div>
             )}
 
-            {/* ── SESSION LOG / TRACKER ───────────────────── */}
             {tab === "tracker" && (
               <div className="glass rounded-2xl p-5 card-shadow border border-white border-opacity-60">
                 <h3 className="fredoka text-lg text-gray-700 mb-3">📊 Session History</h3>
-                {Object.keys(progress.programs).length === 0 ? (
-                  <p className="nunito text-gray-400 text-center py-8">
-                    No sessions yet. Launch a program to begin!
-                  </p>
-                ) : (
+                {Object.keys(progress.programs).length === 0 ? (<p className="nunito text-gray-400 text-center py-8">No sessions yet. Launch a game to begin.</p>) : (
                   <div className="space-y-2">
-                    {PROGRAMS.map(prog => {
+                    {SEQ.map(prog => {
                       const pd = progress.programs[prog.id];
                       if (!pd || !pd.sessions || pd.sessions.length === 0) return null;
                       return (
                         <div key={prog.id} className="bg-white bg-opacity-60 rounded-xl p-3 border border-gray-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">{prog.emoji}</span>
-                            <span className="fredoka text-sm font-bold text-gray-700">P{prog.num}: {prog.title}</span>
-                            {pd.mastery && <span className="text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">Mastered</span>}
-                          </div>
-                          <div className="space-y-1">
-                            {pd.sessions.slice(-5).reverse().map((session, i) => (
-                              <div key={i} className="flex justify-between items-center nunito text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">
-                                <span>{new Date(session.date).toLocaleDateString()} {new Date(session.date).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
-                                <div className="flex gap-3">
-                                  {session.trainScore !== undefined && (
-                                    <span>Train: <strong className={session.trainScore >= session.trainMax * 0.8 ? "text-green-600" : "text-amber-600"}>
-                                      {session.trainScore}/{session.trainMax}
-                                    </strong></span>
-                                  )}
-                                  {session.testScore !== undefined && (
-                                    <span>Test: <strong className="text-purple-600">
-                                      {session.testScore}/{session.testMax}
-                                    </strong></span>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                            {pd.sessions.length > 5 && (
-                              <p className="text-xs text-gray-400 nunito text-center">
-                                + {pd.sessions.length - 5} earlier session{pd.sessions.length - 5 !== 1 ? "s" : ""}
-                              </p>
-                            )}
-                          </div>
+                          <div className="flex items-center gap-2 mb-2"><span className="text-lg">{prog.emoji}</span><span className="fredoka text-sm font-bold text-gray-700">{gameLabel(prog.num)}: {prog.title}</span>{pd.mastery && <span className="text-xs nunito px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">Mastered</span>}</div>
+                          <div className="space-y-1">{pd.sessions.slice(-5).reverse().map((s,i)=>(
+                            <div key={i} className="flex justify-between items-center nunito text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">
+                              <span>{new Date(s.date).toLocaleDateString()}</span>
+                              <div className="flex gap-3">{s.trainScore!==undefined && <span>Train: <strong>{s.trainScore}/{s.trainMax}</strong></span>}{s.testScore!==undefined && s.testScore!==null && <span>Test: <strong className="text-purple-600">{s.testScore}/{s.testMax}</strong></span>}</div>
+                            </div>))}</div>
                         </div>
                       );
                     })}
@@ -524,29 +546,17 @@
               </div>
             )}
 
-            {/* ── FOOTER ─────────────────────────────────── */}
             <footer className="mt-8 text-center">
               <div className="nunito text-xs text-gray-400 space-x-4">
-                <span>FrameShift RFT Suite v2.0</span>
-                <span>·</span>
-                <span>Syntopic Systems</span>
-                <span>·</span>
-                <button onClick={() => setShowReset(true)} className="text-gray-400 hover:text-red-400 transition-colors underline">
-                  Reset Progress
-                </button>
+                <span>FrameShift RFT Suite v3.0</span><span>·</span><span>Syntopic Systems</span><span>·</span>
+                <button onClick={()=>setShowReset(true)} className="text-gray-400 hover:text-red-400 transition-colors underline">Reset / Recalibrate Progress</button>
               </div>
               {showReset && (
                 <div className="mt-3 glass rounded-xl p-4 inline-block card-shadow border border-red-200 anim-fadein">
-                  <p className="nunito text-sm text-gray-700 mb-2">⚠️ This will erase all progress and achievements. Are you sure?</p>
+                  <p className="nunito text-sm text-gray-700 mb-2">This clears all saved progress and mastery, resetting the unlock frontier to the first {WINDOW} games. Use this after games are updated to fix stale mastery flags.</p>
                   <div className="flex gap-2 justify-center">
-                    <button onClick={handleReset}
-                      className="px-4 py-1.5 rounded-lg bg-red-500 text-white fredoka text-sm hover:bg-red-600 transition-colors">
-                      Yes, Reset
-                    </button>
-                    <button onClick={() => setShowReset(false)}
-                      className="px-4 py-1.5 rounded-lg bg-gray-200 text-gray-700 fredoka text-sm hover:bg-gray-300 transition-colors">
-                      Cancel
-                    </button>
+                    <button onClick={handleReset} className="px-4 py-1.5 rounded-lg bg-red-500 text-white fredoka text-sm hover:bg-red-600">Yes, Reset</button>
+                    <button onClick={()=>setShowReset(false)} className="px-4 py-1.5 rounded-lg bg-gray-200 text-gray-700 fredoka text-sm hover:bg-gray-300">Cancel</button>
                   </div>
                 </div>
               )}

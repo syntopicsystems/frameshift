@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Say It Without Words</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#071220;color:#cce3f7;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#4fc3f7;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-da{background:rgba(79,195,247,0.18);color:#4fc3f7;border:1px solid #4fc3f7}
+.tag-ab{background:rgba(129,212,250,0.18);color:#81d4fa;border:1px solid #81d4fa}
+.tag-test{background:rgba(100,220,180,0.18);color:#64dcb4;border:1px solid #64dcb4}
+.score-btn{border:none;border-radius:0.7rem;padding:0.7rem 1.4rem;font-family:'Fredoka',sans-serif;font-size:1.1rem;font-weight:700;cursor:pointer;transition:transform 0.1s}
+.score-btn:active{transform:scale(0.96)}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// A=vocal, B=body gesture, C=face/head gesture, D=question
+const ITEMS=[
+  {A:'Yes',        B:'👍', Bdesc:'Thumbs up',      C:'🙆', Cdesc:'Head nod',     D:'Is the sky blue?'},
+  {A:'No',         B:'👎', Bdesc:'Thumbs down',    C:'🙅', Cdesc:'Head shake',   D:'Can you breathe underwater?'},
+  {A:"I don't know",B:'🤷',Bdesc:'Shoulder shrug', C:'🤔', Cdesc:'Head tilt',    D:'What will the weather be in 3 years?'},
+  {A:'Stop',       B:'✋', Bdesc:'Palm out',       C:'🛑', Cdesc:'Hand up high',  D:'What do you do at a red light?'},
+  {A:'Come here',  B:'👋', Bdesc:'Wave toward you',C:'🫴', Cdesc:'Beckoning hand',D:'How do you ask a friend to come?'},
+  {A:'Quiet',      B:'🤫', Bdesc:'Finger to lips', C:'🤐', Cdesc:'Zipped lips',   D:'What do you show in a library?'},
+];
+let SESSION=[];
+function pickSubset(arr,k){return sh([...arr]).slice(0,k);}
+const ALL_B=ITEMS.map(i=>({B:i.B,Bdesc:i.Bdesc,A:i.A}));
+const ALL_C=ITEMS.map(i=>({C:i.C,Cdesc:i.Cdesc,A:i.A}));
+const TRAIN_MAX=9; // 3×DA + 3×AB + 3×AC
+const TEST_MAX=6;  // 3×DB + 3×DC
+
+function buildTrainTrials(){
+  const da=sh([...SESSION]).map(it=>({type:'da',item:it}));
+  const ab=sh([...SESSION]).map(it=>({type:'ab',item:it}));
+  const ac=sh([...SESSION]).map(it=>({type:'ac',item:it}));
+  return [...da,...ab,...ac];
+}
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'0.8rem'}}>🗣️👐</div>
+      <h1 style={{fontSize:'2.5rem',color:'#4fc3f7',marginBottom:'0.5rem'}}>Say It Without Words</h1>
+      <div style={{background:'rgba(79,195,247,0.1)',border:'1px solid rgba(79,195,247,0.3)',borderRadius:'1rem',padding:'1rem 1.5rem',marginBottom:'1.5rem',maxWidth:'420px'}}>
+        <p style={{fontSize:'0.9rem',color:'#81d4fa',fontFamily:'Fredoka',fontWeight:600,marginBottom:'0.3rem'}}>👋 Caregiver Note</p>
+        <p style={{fontSize:'0.9rem',color:'#cce3f7',lineHeight:'1.5'}}>This activity needs you! The app will show you what question to ask and what gesture to demonstrate. You score your child's responses.</p>
+      </div>
+      <p style={{fontSize:'1.05rem',color:'#cce3f7',marginBottom:'2rem',maxWidth:'400px',lineHeight:'1.6'}}>Learn that "Yes," "No," and "I don't know" can be said with your hands and head — without a single word!
+      </p>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#4fc3f7',color:'#071220',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(79,195,247,0.35)'}}>
+        Let's Begin! 👐
+      </button>
+    </div>
+  );
+}
+
+// D→A: caregiver asks question, child says A (verbal). Caregiver scores.
+function DATrial({item,onDone,num,tot}){
+  const [scored,setScored]=useState(null);
+  const score=(v)=>{setScored(v);playTone(v===1?'correct':'neutral');setTimeout(()=>onDone(v),1200);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-da">Question → Verbal  (D→A)</span>
+      <div style={{background:'rgba(79,195,247,0.08)',border:'2px solid rgba(79,195,247,0.25)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.5rem',maxWidth:'400px'}}>
+        <p style={{fontSize:'0.85rem',color:'#81d4fa',fontFamily:'Fredoka',marginBottom:'0.5rem'}}>📢 Ask your child:</p>
+        <p style={{fontSize:'1.5rem',color:'#cce3f7',fontFamily:'Fredoka',fontWeight:700}}>"{item.D}"</p>
+      </div>
+      <div style={{background:'rgba(255,255,255,0.05)',borderRadius:'1rem',padding:'1rem 1.5rem',marginBottom:'1.5rem'}}>
+        <p style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>Expected verbal answer:</p>
+        <p style={{fontSize:'1.8rem',color:'#4fc3f7',fontFamily:'Fredoka',fontWeight:700}}>"{item.A}"</p>
+      </div>
+      {!scored&&(
+        <div>
+          <p style={{color:'#aaa',fontSize:'0.9rem',marginBottom:'0.8rem'}}>Score child's response:</p>
+          <div style={{display:'flex',gap:'0.8rem',justifyContent:'center'}}>
+            <button className="score-btn" onClick={()=>score(1)} style={{background:'rgba(100,220,180,0.15)',color:'#64dcb4',border:'2px solid #64dcb4'}}>✅ Correct</button>
+            <button className="score-btn" onClick={()=>score(0.5)} style={{background:'rgba(255,190,11,0.12)',color:'#ffbe0b',border:'2px solid #ffbe0b'}}>🟡 Partial</button>
+            <button className="score-btn" onClick={()=>score(0)} style={{background:'rgba(248,113,113,0.1)',color:'#f87171',border:'2px solid #f87171'}}>❌ Incorrect</button>
+          </div>
+        </div>
+      )}
+      {scored!==null&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'0.8rem'}}>Recorded ✓</p>}
+    </div>
+  );
+}
+
+// A→B: show vocal word, pick body gesture (MCQ)
+function ABTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(i=>({B:i.B,Bdesc:i.Bdesc,A:i.A}))));
+  const pick=(o)=>{const ok=o.A===item.A;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ab">Word → Body Gesture  (A→B)</span>
+      <p style={{fontSize:'3rem',color:'#4fc3f7',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.5rem'}}>"{item.A}"</p>
+      <p style={{fontSize:'1.1rem',color:'#cce3f7',marginBottom:'1.8rem'}}>Which gesture means the same?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(79,195,247,0.07)',bd='2px solid rgba(79,195,247,0.28)';
+          if(fb){if(o.A===item.A){bg='rgba(100,220,180,0.15)';bd='2px solid #64dcb4';}
+            else if(fb.o.A===o.A&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'90px'}}>
+              <div style={{fontSize:'2.5rem'}}>{o.B}</div>
+              <div style={{fontSize:'0.85rem',color:'#aaa',marginTop:'0.3rem',fontFamily:'Nunito'}}>{o.Bdesc}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#64dcb4':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  "'+item.A+'" = '+item.Bdesc}</p>}
+    </div>
+  );
+}
+
+// A→C: show vocal word, pick face/head gesture (MCQ)
+function ACTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(i=>({C:i.C,Cdesc:i.Cdesc,A:i.A}))));
+  const pick=(o)=>{const ok=o.A===item.A;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ab">Word → Head Gesture  (A→C)</span>
+      <p style={{fontSize:'3rem',color:'#4fc3f7',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.5rem'}}>"{item.A}"</p>
+      <p style={{fontSize:'1.1rem',color:'#cce3f7',marginBottom:'1.8rem'}}>Which head gesture means the same?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(79,195,247,0.07)',bd='2px solid rgba(79,195,247,0.28)';
+          if(fb){if(o.A===item.A){bg='rgba(100,220,180,0.15)';bd='2px solid #64dcb4';}
+            else if(fb.o.A===o.A&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'90px'}}>
+              <div style={{fontSize:'2.5rem'}}>{o.C}</div>
+              <div style={{fontSize:'0.85rem',color:'#aaa',marginTop:'0.3rem',fontFamily:'Nunito'}}>{o.Cdesc}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#64dcb4':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  "'+item.A+'" = '+item.Cdesc}</p>}
+    </div>
+  );
+}
+
+// Test D→B and D→C: caregiver asks question, child responds with gesture. Caregiver scores.
+function TestTrial({item,gestureType,onDone,num,tot}){
+  // gestureType: 'B' or 'C'
+  const [scored,setScored]=useState(null);
+  const score=(v)=>{setScored(v);playTone('neutral');setTimeout(()=>onDone(v),1200);};
+  const isB=gestureType==='B';
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-test">Question → Gesture  ✨  (D→{gestureType})</span>
+      <div style={{background:'rgba(100,220,180,0.08)',border:'2px solid rgba(100,220,180,0.25)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.2rem',maxWidth:'400px'}}>
+        <p style={{fontSize:'0.85rem',color:'#64dcb4',fontFamily:'Fredoka',marginBottom:'0.5rem'}}>📢 Ask your child:</p>
+        <p style={{fontSize:'1.5rem',color:'#cce3f7',fontFamily:'Fredoka',fontWeight:700}}>"{item.D}"</p>
+      </div>
+      <div style={{background:'rgba(255,255,255,0.05)',borderRadius:'1rem',padding:'0.8rem 1.5rem',marginBottom:'1rem',fontSize:'0.85rem',color:'#aaa'}}>
+        <p>If child says "{item.A}" verbally, ask: <span style={{color:'#4fc3f7',fontWeight:600}}>"How else can you show that?"</span></p>
+      </div>
+      <div style={{background:'rgba(79,195,247,0.06)',borderRadius:'1rem',padding:'0.8rem 1.5rem',marginBottom:'1.5rem'}}>
+        <p style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>Looking for {isB?'body':'head'} gesture:</p>
+        <p style={{fontSize:'1.5rem'}}>{isB?item.B:item.C}</p>
+        <p style={{color:'#4fc3f7',fontFamily:'Fredoka',fontWeight:600}}>{isB?item.Bdesc:item.Cdesc}</p>
+      </div>
+      {!scored&&(
+        <div>
+          <p style={{color:'#aaa',fontSize:'0.9rem',marginBottom:'0.8rem'}}>Score child's gesture:</p>
+          <div style={{display:'flex',gap:'0.8rem',justifyContent:'center'}}>
+            <button className="score-btn" onClick={()=>score(1)} style={{background:'rgba(100,220,180,0.15)',color:'#64dcb4',border:'2px solid #64dcb4'}}>✅ Correct</button>
+            <button className="score-btn" onClick={()=>score(0.5)} style={{background:'rgba(255,190,11,0.12)',color:'#ffbe0b',border:'2px solid #ffbe0b'}}>🟡 Partial</button>
+            <button className="score-btn" onClick={()=>score(0)} style={{background:'rgba(248,113,113,0.1)',color:'#f87171',border:'2px solid #f87171'}}>❌ Incorrect</button>
+          </div>
+        </div>
+      )}
+      {scored!==null&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'0.8rem'}}>Recorded ✓</p>}
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#4fc3f7',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#cce3f7',fontSize:'1.2rem'}}>{trainScore.toFixed(1)} / {trainMax} ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Now let\'s see if they can gesture when asked a question — without being told to!':'Keep practicing those gestures!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#64dcb4',color:'#071220',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Start Test →</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#4fc3f7',color:'#071220',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12o',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#4fc3f7',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(79,195,247,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#4fc3f7',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (D→A + A→B + A→C)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore.toFixed(1)} / {trainMax}</p>
+      </div>
+      <div style={{background:'rgba(100,220,180,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#64dcb4',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Test (D→B + D→C emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore.toFixed(1)} / {testMax}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#4fc3f7',color:'#071220',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#cce3f7',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testTrials,setTestTrials]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+
+  const startTrain=()=>{SESSION=pickSubset(ITEMS,3);setTrials(buildTrainTrials());setIdx(0);setTrainScore(0);setPh('train');};
+  const startTest=()=>{
+    // 3×D→B + 3×D→C interleaved
+    const db=sh([...SESSION]).map(it=>({type:'B',item:it}));
+    const dc=sh([...SESSION]).map(it=>({type:'C',item:it}));
+    setTestTrials(sh([...db,...dc]));
+    setIdx(0);setTestScore(0);setPh('test');
+  };
+
+  const onTrain=(s)=>{
+    setTrainScore(v=>v+s);
+    if(idx<trials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('gate'),300);
+  };
+  const onTest=(s)=>{
+    setTestScore(v=>v+s);
+    if(idx<testTrials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('results'),300);
+  };
+
+  if(ph==='welcome')return<Welcome onStart={startTrain}/>;
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='da')return<DATrial key={'da'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='ab')return<ABTrial key={'ab'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='ac')return<ACTrial key={'ac'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+  }
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test'&&testTrials.length>0){
+    const t=testTrials[idx];
+    return<TestTrial key={'test'+idx} item={t.item} gestureType={t.type} onDone={onTest} num={idx+1} tot={testTrials.length}/>;
+  }
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

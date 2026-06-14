@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — What's It For?</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#0f0800;color:#ffe8c0;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#fb923c;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-ab{background:rgba(251,146,60,0.18);color:#fb923c;border:1px solid #fb923c}
+.tag-bc{background:rgba(250,204,21,0.18);color:#facc15;border:1px solid #facc15}
+.tag-test{background:rgba(52,211,153,0.18);color:#34d399;border:1px solid #34d399}
+.score-btn{border:none;border-radius:0.7rem;padding:0.7rem 1.4rem;font-family:'Fredoka',sans-serif;font-size:1.1rem;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// A=action (caregiver performs), B=tool picture, C=verbal function
+const ITEMS=[
+  {id:'shovel', A:{desc:'pretend to shovel',emoji:'⛏️'}, B:{name:'Shovel',emoji:'🪣'}, C:'dig'},
+  {id:'ladder', A:{desc:'pretend to climb',emoji:'🧗'}, B:{name:'Ladder',emoji:'🪜'}, C:'climb'},
+  {id:'axe',    A:{desc:'pretend to chop', emoji:'🪓'}, B:{name:'Axe',   emoji:'🪓'}, C:'chop'},
+];
+const ALL_B=ITEMS.map(it=>({...it.B,id:it.id}));
+const ALL_C=ITEMS.map(it=>it.C);
+const TRAIN_MAX=9;  // 3×AB + 3×BC + 3×CA (caregiver-scored)
+const TEST_MAX=3;   // C→A: child performs action from verbal cue (caregiver scores)
+
+function buildTrainTrials(){
+  const ab=sh([...ITEMS]).map(it=>({type:'ab',item:it}));
+  const bc=sh([...ITEMS]).map(it=>({type:'bc',item:it}));
+  const ca=sh([...ITEMS]).map(it=>({type:'ca',item:it}));
+  return [...ab,...bc,...ca];
+}
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'0.8rem'}}>🛠️</div>
+      <h1 style={{fontSize:'2.5rem',color:'#fb923c',marginBottom:'0.5rem'}}>What's It For?</h1>
+      <div style={{background:'rgba(251,146,60,0.1)',border:'1px solid rgba(251,146,60,0.3)',borderRadius:'1rem',padding:'1rem 1.5rem',marginBottom:'1.5rem',maxWidth:'400px'}}>
+        <p style={{fontSize:'0.9rem',color:'#fb923c',fontFamily:'Fredoka',fontWeight:600,marginBottom:'0.3rem'}}>👋 Caregiver Note</p>
+        <p style={{fontSize:'0.9rem',color:'#ffe8c0',lineHeight:'1.5'}}>You'll perform pretend actions and point to tools. The app tells you what to do and shows you what to score.</p>
+      </div>
+      <p style={{fontSize:'1.05rem',color:'#ffe8c0',marginBottom:'2rem',maxWidth:'420px',lineHeight:'1.6'}}>
+        Actions have tools, and tools have functions. Connect them all — then show the action when given just a word!
+      </p>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#fb923c',color:'#0f0800',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(251,146,60,0.4)'}}>
+        Let's Build! 🛠️
+      </button>
+    </div>
+  );
+}
+
+// A→B: caregiver performs action; child picks tool from MCQ
+function ABTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh([...ALL_B]));
+  const pick=(o)=>{const ok=o.id===item.id;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ab">Action → Tool  (A→B)</span>
+      <div style={{background:'rgba(251,146,60,0.1)',border:'2px solid rgba(251,146,60,0.3)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.5rem',maxWidth:'360px'}}>
+        <p style={{fontSize:'0.85rem',color:'#fb923c',fontFamily:'Fredoka',marginBottom:'0.4rem'}}>🎭 Caregiver: perform this action</p>
+        <p style={{fontSize:'2rem'}}>{item.A.emoji}</p>
+        <p style={{fontSize:'1.3rem',color:'#ffe8c0',fontFamily:'Fredoka',fontWeight:700,marginTop:'0.3rem'}}>{item.A.desc}</p>
+      </div>
+      <p style={{fontSize:'1.1rem',color:'#ffe8c0',marginBottom:'1.5rem'}}>What would I use to do this?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(251,146,60,0.07)',bd='2px solid rgba(251,146,60,0.28)';
+          if(fb){if(o.id===item.id){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}
+            else if(fb.o.id===o.id&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'90px'}}>
+              <div style={{fontSize:'2.5rem'}}>{o.emoji}</div>
+              <div style={{fontSize:'0.9rem',fontFamily:'Fredoka',color:'#ffe8c0',marginTop:'0.3rem',fontWeight:600}}>{o.name}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  '+item.A.desc+' → '+item.B.name}</p>}
+    </div>
+  );
+}
+
+// B→C: show tool picture, pick verbal function (MCQ)
+function BCTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh([...ALL_C]));
+  const pick=(o)=>{const ok=o===item.C;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-bc">Tool → Function  (B→C)</span>
+      <div style={{fontSize:'5rem',marginBottom:'0.3rem'}}>{item.B.emoji}</div>
+      <p style={{fontSize:'1.8rem',color:'#facc15',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>{item.B.name}</p>
+      <p style={{fontSize:'1.1rem',color:'#ffe8c0',marginBottom:'1.8rem'}}>What can I use a {item.B.name} for?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(250,204,21,0.07)',bd='2px solid rgba(250,204,21,0.28)';
+          if(fb){if(o===item.C){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}
+            else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',
+              fontSize:'1.3rem',fontFamily:'Fredoka',color:'#ffe8c0',fontWeight:700}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  '+item.B.name+' → '+item.C}</p>}
+    </div>
+  );
+}
+
+// C→A (train): ask "what would I do with [function]?" — child picks tool then caregiver scores action
+// Implemented as caregiver-scored: app shows the cue + expected response
+function CATrain({item,onDone,num,tot}){
+  const [scored,setScored]=useState(null);
+  const score=(v)=>{setScored(v);playTone(v===1?'correct':'neutral');setTimeout(()=>onDone(v),1200);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-bc">Function → Action  (C→A)</span>
+      <div style={{background:'rgba(250,204,21,0.1)',border:'2px solid rgba(250,204,21,0.3)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.2rem',maxWidth:'360px'}}>
+        <p style={{fontSize:'0.85rem',color:'#facc15',fontFamily:'Fredoka',marginBottom:'0.4rem'}}>📢 Ask your child:</p>
+        <p style={{fontSize:'1.6rem',color:'#ffe8c0',fontFamily:'Fredoka',fontWeight:700}}>"What would you do with <span style={{color:'#facc15'}}>{item.C}</span>?"</p>
+      </div>
+      <div style={{background:'rgba(255,255,255,0.05)',borderRadius:'1rem',padding:'0.8rem 1.5rem',marginBottom:'1.5rem'}}>
+        <p style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>Expected: demonstrate</p>
+        <span style={{fontSize:'2rem'}}>{item.A.emoji}</span>
+        <p style={{color:'#fb923c',fontFamily:'Fredoka',fontWeight:600,marginTop:'0.3rem'}}>{item.A.desc}</p>
+      </div>
+      {!scored&&(
+        <div>
+          <p style={{color:'#aaa',fontSize:'0.9rem',marginBottom:'0.8rem'}}>Score child's response:</p>
+          <div style={{display:'flex',gap:'0.8rem',justifyContent:'center'}}>
+            <button className="score-btn" onClick={()=>score(1)} style={{background:'rgba(52,211,153,0.15)',color:'#34d399',border:'2px solid #34d399'}}>✅ Correct</button>
+            <button className="score-btn" onClick={()=>score(0.5)} style={{background:'rgba(250,204,21,0.12)',color:'#facc15',border:'2px solid #facc15'}}>🟡 Partial</button>
+            <button className="score-btn" onClick={()=>score(0)} style={{background:'rgba(248,113,113,0.1)',color:'#f87171',border:'2px solid #f87171'}}>❌ Incorrect</button>
+          </div>
+        </div>
+      )}
+      {scored!==null&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'0.8rem'}}>Recorded ✓</p>}
+    </div>
+  );
+}
+
+// Test C→A: same format, no corrective feedback signal — just "response recorded"
+function CATest({item,onDone,num,tot}){
+  const [scored,setScored]=useState(null);
+  const score=(v)=>{setScored(v);playTone('neutral');setTimeout(()=>onDone(v),1200);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-test">Function → Action  ✨  (C→A)</span>
+      <div style={{background:'rgba(52,211,153,0.08)',border:'2px solid rgba(52,211,153,0.25)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.2rem',maxWidth:'360px'}}>
+        <p style={{fontSize:'0.85rem',color:'#34d399',fontFamily:'Fredoka',marginBottom:'0.4rem'}}>📢 Ask your child:</p>
+        <p style={{fontSize:'1.6rem',color:'#ffe8c0',fontFamily:'Fredoka',fontWeight:700}}>"What would you do with <span style={{color:'#34d399'}}>{item.C}</span>?"</p>
+      </div>
+      <div style={{background:'rgba(255,255,255,0.04)',borderRadius:'1rem',padding:'0.8rem 1.5rem',marginBottom:'1.5rem'}}>
+        <p style={{fontSize:'0.85rem',color:'#555',marginBottom:'0.3rem'}}>Looking for:</p>
+        <span style={{fontSize:'2rem'}}>{item.A.emoji}</span>
+        <p style={{color:'#666',fontFamily:'Fredoka',fontWeight:600,marginTop:'0.3rem'}}>{item.A.desc}</p>
+      </div>
+      {!scored&&(
+        <div>
+          <p style={{color:'#aaa',fontSize:'0.9rem',marginBottom:'0.8rem'}}>Score child's response:</p>
+          <div style={{display:'flex',gap:'0.8rem',justifyContent:'center'}}>
+            <button className="score-btn" onClick={()=>score(1)} style={{background:'rgba(52,211,153,0.15)',color:'#34d399',border:'2px solid #34d399'}}>✅ Correct</button>
+            <button className="score-btn" onClick={()=>score(0.5)} style={{background:'rgba(250,204,21,0.12)',color:'#facc15',border:'2px solid #facc15'}}>🟡 Partial</button>
+            <button className="score-btn" onClick={()=>score(0)} style={{background:'rgba(248,113,113,0.1)',color:'#f87171',border:'2px solid #f87171'}}>❌ Incorrect</button>
+          </div>
+        </div>
+      )}
+      {scored!==null&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'0.8rem'}}>Response recorded ✓</p>}
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#fb923c',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#ffe8c0',fontSize:'1.2rem'}}>{trainScore.toFixed(1)} / {trainMax} ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Can they perform the right action when given only a function word?':'Let\'s keep practicing!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#34d399',color:'#0f0800',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Start Test →</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#fb923c',color:'#0f0800',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12s',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#fb923c',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(251,146,60,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#fb923c',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (A→B + B→C + C→A)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore.toFixed(1)} / {trainMax}</p>
+      </div>
+      <div style={{background:'rgba(52,211,153,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#34d399',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Test (C→A emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore.toFixed(1)} / {testMax}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#fb923c',color:'#0f0800',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#ffe8c0',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testItems,setTestItems]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+
+  const startTrain=()=>{setTrials(buildTrainTrials());setIdx(0);setTrainScore(0);setPh('train');};
+  const startTest=()=>{setTestItems(sh([...ITEMS]));setIdx(0);setTestScore(0);setPh('test');};
+
+  const onTrain=(s)=>{
+    setTrainScore(v=>v+s);
+    if(idx<trials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('gate'),300);
+  };
+  const onTest=(s)=>{
+    setTestScore(v=>v+s);
+    if(idx<testItems.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('results'),300);
+  };
+
+  if(ph==='welcome')return<Welcome onStart={startTrain}/>;
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='ab')return<ABTrial key={'ab'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='bc')return<BCTrial key={'bc'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='ca')return<CATrain key={'ca'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+  }
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test'&&testItems.length>0)return<CATest key={'test'+idx} item={testItems[idx]} onDone={onTest} num={idx+1} tot={testItems.length}/>;
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

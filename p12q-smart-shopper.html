@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Smart Shopper</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#0d1a0a;color:#e8f5e2;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#7ec850;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-ab{background:rgba(126,200,80,0.18);color:#7ec850;border:1px solid #7ec850}
+.tag-bc{background:rgba(250,204,21,0.18);color:#facc15;border:1px solid #facc15}
+.tag-ca{background:rgba(52,211,153,0.18);color:#34d399;border:1px solid #34d399}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// A=original, B=first substitute, C=second substitute (equivalent to B, which substitutes A)
+const GROUPS=[
+  {
+    A:{name:'Butter',     emoji:'🧈'},
+    B:{name:'Oil',        emoji:'🫙'},
+    C:{name:'Margarine',  emoji:'🧈'}, // distinct emoji issue — using label
+    Cemoji:'🟡',
+  },
+  {
+    A:{name:'Pork',       emoji:'🥩'},
+    B:{name:'Beef',       emoji:'🥩'},
+    Cemoji:'🍖',
+    C:{name:'Chicken',    emoji:'🍗'},
+  },
+  {
+    A:{name:'Cereal',     emoji:'🥣'},
+    B:{name:'Waffle',     emoji:'🧇'},
+    Cemoji:'🍞',
+    C:{name:'Toaster Pastry', emoji:'🍞'},
+  },
+];
+
+// Give each item a distinct emoji to avoid confusion
+const ITEMS=[
+  {A:{name:'Butter',emoji:'🧈'},     B:{name:'Oil',emoji:'🫙'},       C:{name:'Margarine',emoji:'🟡'}, id:'dairy'},
+  {A:{name:'Pork',emoji:'🥩'},       B:{name:'Beef',emoji:'🍖'},      C:{name:'Chicken',emoji:'🍗'},  id:'meat'},
+  {A:{name:'Cereal',emoji:'🥣'},     B:{name:'Waffle',emoji:'🧇'},    C:{name:'Toaster Pastry',emoji:'🍞'}, id:'grain'},
+];
+
+const ALL_B=ITEMS.map(it=>({...it.B,id:it.id}));
+const ALL_A=ITEMS.map(it=>({...it.A,id:it.id}));
+const TRAIN_MAX=6;  // 3×AB + 3×BC
+const TEST_MAX=3;   // 3 shopping-list sub scenarios (C missing → pick A or B)
+
+function buildTrainTrials(){
+  const ab=sh([...ITEMS]).map(it=>({type:'ab',item:it}));
+  const bc=sh([...ITEMS]).map(it=>({type:'bc',item:it}));
+  return [...ab,...bc];
+}
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'0.8rem'}}>🛒</div>
+      <h1 style={{fontSize:'2.5rem',color:'#7ec850',marginBottom:'0.5rem'}}>Smart Shopper</h1>
+      <p style={{fontSize:'1.05rem',color:'#e8f5e2',marginBottom:'1.5rem',maxWidth:'440px',lineHeight:'1.6'}}>
+        Learn which grocery items can substitute for each other. Then — if the store is out of something — figure out what to grab instead!
+      </p>
+      <div style={{fontSize:'1.3rem',marginBottom:'2rem',color:'#aaa',fontFamily:'Fredoka'}}>
+        🧈 → 🫙 → 🟡
+      </div>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#7ec850',color:'#0d1a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(126,200,80,0.35)'}}>
+        Let's Shop! 🛒
+      </button>
+    </div>
+  );
+}
+
+// A→B: show original, pick substitute
+function ABTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh([...ALL_B]));
+  const pick=(o)=>{const ok=o.id===item.id;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-ab">Original → Substitute  (A→B)</span>
+      <div style={{fontSize:'5rem',marginBottom:'0.4rem'}}>{item.A.emoji}</div>
+      <p style={{fontSize:'1.8rem',color:'#7ec850',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>{item.A.name}</p>
+      <p style={{fontSize:'1.1rem',color:'#e8f5e2',marginBottom:'1.8rem'}}>Which item can substitute for <span style={{color:'#7ec850',fontWeight:700}}>{item.A.name}</span>?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(126,200,80,0.07)',bd='2px solid rgba(126,200,80,0.28)';
+          if(fb){if(o.id===item.id){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}
+            else if(fb.o.id===o.id&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'100px'}}>
+              <div style={{fontSize:'2.2rem'}}>{o.emoji}</div>
+              <div style={{fontSize:'1rem',fontFamily:'Fredoka',color:'#e8f5e2',marginTop:'0.3rem',fontWeight:600}}>{o.name}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Good substitute!':'✗  '+item.A.name+' → '+item.B.name}</p>}
+    </div>
+  );
+}
+
+// B→C: show first substitute, pick equivalent
+function BCTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const allC=ITEMS.map(it=>({...it.C,id:it.id}));
+  const [opts]=useState(()=>sh([...allC]));
+  const pick=(o)=>{const ok=o.id===item.id;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className="phase-tag tag-bc">Substitute → Equivalent  (B→C)</span>
+      <div style={{fontSize:'5rem',marginBottom:'0.4rem'}}>{item.B.emoji}</div>
+      <p style={{fontSize:'1.8rem',color:'#facc15',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>{item.B.name}</p>
+      <p style={{fontSize:'1.1rem',color:'#e8f5e2',marginBottom:'1.8rem'}}>Which item is equivalent to <span style={{color:'#facc15',fontWeight:700}}>{item.B.name}</span>?</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(250,204,21,0.07)',bd='2px solid rgba(250,204,21,0.28)';
+          if(fb){if(o.id===item.id){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}
+            else if(fb.o.id===o.id&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'100px'}}>
+              <div style={{fontSize:'2.2rem'}}>{o.emoji}</div>
+              <div style={{fontSize:'1rem',fontFamily:'Fredoka',color:'#e8f5e2',marginTop:'0.3rem',fontWeight:600}}>{o.name}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Equivalent!':'✗  '+item.B.name+' ≈ '+item.C.name}</p>}
+    </div>
+  );
+}
+
+// Test: C→A (or C→B) — store is out of C, pick A or B substitute (both correct)
+function TestTrial({item,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  // Present: item.A, item.B (both correct), and one distractor from another group
+  const distractor=ITEMS.find(it=>it.id!==item.id);
+  const [opts]=useState(()=>sh([
+    {...item.A, id:item.id, correct:true},
+    {...item.B, id:item.id+'b', correct:true},
+    {...distractor.A, id:'dist', correct:false},
+  ]));
+  const pick=(o)=>{
+    const ok=o.correct;setFb({ok,o});playTone('neutral');setTimeout(()=>onDone(ok?1:0),1800);
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-ca">Out of Stock → Substitute!  ✨  (C→A/B)</span>
+
+      {/* Shopping list */}
+      <div style={{background:'rgba(255,255,255,0.05)',border:'2px dashed rgba(126,200,80,0.3)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.5rem',maxWidth:'340px',textAlign:'left'}}>
+        <p style={{color:'#7ec850',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.6rem',fontSize:'0.95rem'}}>📋 Shopping List</p>
+        {ITEMS.map((it,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:'0.6rem',marginBottom:'0.35rem',
+            opacity:it.id===item.id?1:0.4,
+            color:it.id===item.id?'#facc15':'#aaa',
+            fontWeight:it.id===item.id?700:400}}>
+            <span style={{fontSize:'1.3rem'}}>{it.id===item.id?'❌':it.C.emoji}</span>
+            <span style={{fontFamily:'Fredoka',fontSize:'1rem',textDecoration:it.id===item.id?'line-through':'none'}}>
+              {it.C.name}{it.id===item.id?' — OUT OF STOCK!':''}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p style={{fontSize:'1.1rem',color:'#e8f5e2',marginBottom:'1.5rem'}}>
+        The store is out of <span style={{color:'#f87171',fontWeight:700,fontFamily:'Fredoka'}}>{item.C.name}</span>. What can you use instead?
+      </p>
+
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(52,211,153,0.06)',bd='2px solid rgba(52,211,153,0.22)';
+          if(fb){if(o.correct){bg='rgba(52,211,153,0.15)';bd='3px solid #34d399';}
+            else if(fb.o.id===o.id&&!fb.ok){bg='rgba(248,113,113,0.08)';bd='3px solid rgba(248,113,113,0.4)';}}
+          return(
+            <button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+              style={{background:bg,border:bd,borderRadius:'1rem',padding:'0.9rem 1.5rem',cursor:fb?'default':'pointer',textAlign:'center',minWidth:'90px'}}>
+              <div style={{fontSize:'2.2rem'}}>{o.emoji}</div>
+              <div style={{fontSize:'1rem',fontFamily:'Fredoka',color:'#e8f5e2',marginTop:'0.3rem',fontWeight:600}}>{o.name}</div>
+            </button>
+          );
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'1rem'}}>Response recorded ✓</p>}
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#7ec850',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#e8f5e2',fontSize:'1.2rem'}}>{trainScore} / {trainMax} ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Time to shop! Can you find substitutes on your own?':'Let\'s review the substitutions!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#34d399',color:'#0d1a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Go Shopping! 🛒</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#7ec850',color:'#0d1a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12q',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#7ec850',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(126,200,80,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#7ec850',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (A→B + B→C)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore} / {trainMax}</p>
+      </div>
+      <div style={{background:'rgba(52,211,153,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#34d399',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Test (C→A/B emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore} / {testMax}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#7ec850',color:'#0d1a0a',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#e8f5e2',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testItems,setTestItems]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+
+  const startTrain=()=>{setTrials(buildTrainTrials());setIdx(0);setTrainScore(0);setPh('train');};
+  const startTest=()=>{setTestItems(sh([...ITEMS]));setIdx(0);setTestScore(0);setPh('test');};
+
+  const onTrain=(s)=>{
+    setTrainScore(v=>v+s);
+    if(idx<trials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('gate'),300);
+  };
+  const onTest=(s)=>{
+    setTestScore(v=>v+s);
+    if(idx<testItems.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('results'),300);
+  };
+
+  if(ph==='welcome')return<Welcome onStart={startTrain}/>;
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='ab')return<ABTrial key={'ab'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='bc')return<BCTrial key={'bc'+idx} item={t.item} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+  }
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test'&&testItems.length>0)return<TestTrial key={'test'+idx} item={testItems[idx]} onDone={onTest} num={idx+1} tot={testItems.length}/>;
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

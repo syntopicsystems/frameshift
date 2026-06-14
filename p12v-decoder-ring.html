@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Decoder Ring</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#050a12;color:#e0f2fe;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#38bdf8;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-ab{background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid #38bdf8}
+.tag-bc{background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid #fbbf24}
+.tag-test{background:rgba(52,211,153,0.18);color:#34d399;border:1px solid #34d399}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+const CODE=[
+  {A:'A',B:'5',C:'✦'},
+  {A:'B',B:'7',C:'★'},
+  {A:'C',B:'2',C:'♥'},
+  {A:'D',B:'9',C:'◆'},
+  {A:'E',B:'3',C:'♣'},
+  {A:'F',B:'8',C:'●'},
+];
+let SESSION=[];
+function pickSubset(arr,k){return sh([...arr]).slice(0,k);}
+const ALL_A=CODE.map(c=>c.A);
+const ALL_B=CODE.map(c=>c.B);
+const ALL_C=CODE.map(c=>c.C);
+
+const resolveToken=(v)=>{
+  const byB=CODE.find(c=>c.B===v);if(byB)return byB.A;
+  const byC=CODE.find(c=>c.C===v);if(byC)return byC.A;
+  return '?';
+};
+
+const RAW_MSGS=[
+  [{v:'5',t:'B'},{v:'★',t:'C'},{v:'2',t:'B'}],
+  [{v:'♥',t:'C'},{v:'5',t:'B'},{v:'★',t:'C'}],
+  [{v:'7',t:'B'},{v:'♥',t:'C'},{v:'5',t:'B'}],
+  [{v:'★',t:'C'},{v:'2',t:'B'},{v:'7',t:'B'}],
+  [{v:'2',t:'B'},{v:'✦',t:'C'},{v:'♥',t:'C'}],
+];
+const MSGS=RAW_MSGS.map(tokens=>({tokens,answer:tokens.map(t=>resolveToken(t.v)).join('')}));
+function buildMsgs(sess,count){
+  const out=[];
+  for(let m=0;m<count;m++){
+    const tokens=[];
+    for(let i=0;i<3;i++){
+      const c=sess[Math.floor(Math.random()*sess.length)];
+      const useC=Math.random()<0.5;
+      tokens.push({v:useC?c.C:c.B,t:useC?'C':'B'});
+    }
+    out.push({tokens,answer:tokens.map(x=>resolveToken(x.v)).join('')});
+  }
+  return out;
+}
+
+const TRAIN_MAX=6;
+const TEST_MAX=5;
+
+function buildTrainTrials(){
+  const ab=sh([...SESSION]).map(c=>({type:'ab',code:c}));
+  const bc=sh([...SESSION]).map(c=>({type:'bc',code:c}));
+  return [...ab,...bc];
+}
+
+function KeyPanel(){
+  return(
+    <div style={{background:'rgba(56,189,248,0.06)',border:'1px solid rgba(56,189,248,0.2)',borderRadius:'1rem',padding:'0.6rem 1rem',marginBottom:'1rem',display:'inline-block'}}>
+      <p style={{fontSize:'0.72rem',color:'#38bdf8',fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.4rem',textAlign:'center'}}>🔑 Decoder Key</p>
+      <div style={{display:'flex',gap:'0.6rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {SESSION.map((c,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:'0.4rem',background:'rgba(255,255,255,0.04)',borderRadius:'0.6rem',padding:'0.4rem 0.7rem',border:'1px solid rgba(255,255,255,0.08)'}}>
+            <span style={{fontSize:'1.1rem',fontFamily:'Fredoka',color:'#38bdf8',fontWeight:700}}>{c.A}</span>
+            <span style={{color:'#444',fontSize:'0.75rem'}}>═</span>
+            <span style={{fontSize:'1.1rem',fontFamily:'Fredoka',color:'#fbbf24',fontWeight:700}}>{c.B}</span>
+            <span style={{color:'#444',fontSize:'0.75rem'}}>═</span>
+            <span style={{fontSize:'1.1rem',color:'#f472b6',fontWeight:700}}>{c.C}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ABTrial({code,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(c=>c.B)));
+  const pick=(o)=>{const ok=o===code.B;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num}/{tot}</div>
+      <span className="phase-tag tag-ab">Letter → Number  (A→B)</span>
+      <div style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'90px',height:'90px',borderRadius:'1rem',fontSize:'3.5rem',fontFamily:'Fredoka',fontWeight:700,color:'#38bdf8',border:'2px solid #38bdf8',background:'rgba(56,189,248,0.08)',marginBottom:'1rem'}}>{code.A}</div>
+      <p style={{fontSize:'1.1rem',color:'#e0f2fe',marginBottom:'1.8rem'}}>Number code for <span style={{color:'#38bdf8',fontFamily:'Fredoka',fontWeight:700}}>{code.A}</span>?</p>
+      <div style={{display:'flex',gap:'1rem',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(56,189,248,0.07)',bd='2px solid rgba(56,189,248,0.28)';
+          if(fb){if(o===code.B){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'1rem 2rem',cursor:fb?'default':'pointer',fontSize:'1.8rem',fontFamily:'Fredoka',color:'#fbbf24',fontWeight:700}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  '+code.A+' → '+code.B}</p>}
+    </div>
+  );
+}
+
+function BCTrial({code,onDone,num,tot}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(c=>c.C)));
+  const pick=(o)=>{const ok=o===code.C;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num}/{tot}</div>
+      <span className="phase-tag tag-bc">Number → Symbol  (B→C)</span>
+      <div style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'90px',height:'90px',borderRadius:'1rem',fontSize:'2.5rem',fontFamily:'Fredoka',fontWeight:700,color:'#fbbf24',border:'2px solid #fbbf24',background:'rgba(251,191,36,0.08)',marginBottom:'1rem'}}>{code.B}</div>
+      <p style={{fontSize:'1.1rem',color:'#e0f2fe',marginBottom:'1.8rem'}}>Symbol for <span style={{color:'#fbbf24',fontFamily:'Fredoka',fontWeight:700}}>{code.B}</span>?</p>
+      <div style={{display:'flex',gap:'1rem',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(251,191,36,0.07)',bd='2px solid rgba(251,191,36,0.28)';
+          if(fb){if(o===code.C){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}else if(fb.o===o&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'1rem 2rem',cursor:fb?'default':'pointer',fontSize:'1.8rem',color:'#f472b6',fontWeight:700}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  '+code.B+' → '+code.C}</p>}
+    </div>
+  );
+}
+
+function DecodeTrial({msg,onDone,num,tot}){
+  const [step,setStep]=useState(0);
+  const [decoded,setDecoded]=useState([]);
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh(SESSION.map(c=>c.A)));
+
+  const token=msg.tokens[step];
+  const correctA=resolveToken(token.v);
+
+  const pick=(o)=>{
+    const ok=o===correctA;
+    setFb({ok});
+    playTone('neutral');
+    setTimeout(()=>{
+      const nd=[...decoded,{v:o,correct:ok}];
+      setDecoded(nd);
+      setFb(null);
+      if(step<msg.tokens.length-1){
+        setStep(s=>s+1);
+      } else {
+        const score=nd.filter(x=>x.correct).length===msg.tokens.length?1:0;
+        onDone(score);
+      }
+    },1000);
+  };
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num}/{tot}</div>
+      <span className="phase-tag tag-test">Decode the Message!  ✨</span>
+      <KeyPanel/>
+      <div style={{display:'flex',gap:'0.7rem',marginBottom:'1.5rem',justifyContent:'center',alignItems:'flex-end',flexWrap:'wrap'}}>
+        {msg.tokens.map((t,i)=>{
+          const isDone=i<step;
+          const isActive=i===step;
+          return(
+            <div key={i} style={{textAlign:'center'}}>
+              <div style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'58px',height:'58px',borderRadius:'0.7rem',fontSize:'1.6rem',fontFamily:'Fredoka',fontWeight:700,
+                color:t.t==='B'?'#fbbf24':'#f472b6',
+                border:isActive?'2px solid #34d399':'2px solid rgba(255,255,255,0.1)',
+                background:isActive?'rgba(52,211,153,0.08)':'rgba(255,255,255,0.04)',
+                marginBottom:'0.3rem'}}>{t.v}</div>
+              <div style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700,color:'#38bdf8',minWidth:'32px',height:'1.6rem',
+                borderBottom:isDone?'2px solid #38bdf8':'2px dashed rgba(56,189,248,0.3)',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                {isDone?decoded[i]?.v:''}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{fontSize:'1.1rem',color:'#e0f2fe',marginBottom:'0.4rem'}}>
+        Token {step+1}/{msg.tokens.length}:
+        <span style={{color:token.t==='B'?'#fbbf24':'#f472b6',fontFamily:'Fredoka',fontWeight:700,fontSize:'1.5rem',marginLeft:'0.5rem'}}>{token.v}</span>
+      </p>
+      <p style={{fontSize:'0.95rem',color:'#aaa',marginBottom:'1.5rem'}}>Which letter?</p>
+      <div style={{display:'flex',gap:'1rem',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(52,211,153,0.06)',bd='2px solid rgba(52,211,153,0.22)';
+          if(fb){if(o===correctA){bg='rgba(52,211,153,0.15)';bd='3px solid #34d399';}else if(!fb.ok&&o!==correctA&&decoded.length===step){bg='rgba(248,113,113,0.08)';bd='3px solid rgba(248,113,113,0.4)';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'1rem 2rem',cursor:fb?'default':'pointer',fontSize:'1.8rem',fontFamily:'Fredoka',color:'#38bdf8',fontWeight:700}}>{o}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1rem',fontFamily:'Fredoka',fontWeight:600,color:'#718096',marginTop:'0.8rem'}}>Recorded ✓</p>}
+    </div>
+  );
+}
+
+function Gate({ts,tm,onRetry,onAdvance}){
+  const pct=Math.round((ts/tm)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#38bdf8',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#e0f2fe',fontSize:'1.2rem'}}>{ts}/{tm} ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Decode secret messages — they use BOTH numbers and symbols mixed together!':'Let\'s review the code!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#34d399',color:'#050a12',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Decode! 🔮</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#38bdf8',color:'#050a12',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({ts,tm,xs,xm}){
+  const mastery=(xs/xm)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=ts,_xs=xs,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12v',_ts,tm,_xs,xm,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#38bdf8',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(56,189,248,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#38bdf8',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (A→B + B→C)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{ts}/{tm}</p>
+      </div>
+      <div style={{background:'rgba(52,211,153,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#34d399',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Decode Test (B/C→A emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{xs}/{xm}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#38bdf8',color:'#050a12',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#e0f2fe',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [msgs,setMsgs]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [ts,setTs]=useState(0);
+  const [xs,setXs]=useState(0);
+
+  const startTrain=()=>{SESSION=pickSubset(CODE,3);setTrials(buildTrainTrials());setIdx(0);setTs(0);setPh('train');};
+  const startTest=()=>{setMsgs(buildMsgs(SESSION,5));setIdx(0);setXs(0);setPh('test');};
+
+  const onTrain=(s)=>{setTs(v=>v+s);idx<trials.length-1?setTimeout(()=>setIdx(i=>i+1),300):setTimeout(()=>setPh('gate'),300);};
+  const onTest=(s)=>{setXs(v=>v+s);idx<msgs.length-1?setTimeout(()=>setIdx(i=>i+1),300):setTimeout(()=>setPh('results'),300);};
+
+  if(ph==='welcome')return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'3.5rem',marginBottom:'0.8rem'}}>🔮</div>
+      <h1 style={{fontSize:'2.5rem',color:'#38bdf8',marginBottom:'0.5rem'}}>Decoder Ring</h1>
+      <p style={{fontSize:'1.05rem',color:'#e0f2fe',marginBottom:'1.2rem',maxWidth:'440px',lineHeight:'1.6'}}>
+        Every letter has a number code — and every number has a symbol. Learn the code, then decode mystery messages that mix both!
+      </p>
+      <div style={{display:'flex',gap:'0.5rem',alignItems:'center',marginBottom:'1.5rem',justifyContent:'center'}}>
+        <span style={{fontSize:'1.6rem',fontFamily:'Fredoka',fontWeight:700,color:'#38bdf8'}}>A</span>
+        <span style={{color:'#444'}}>═</span>
+        <span style={{fontSize:'1.6rem',fontFamily:'Fredoka',color:'#fbbf24',fontWeight:700}}>5</span>
+        <span style={{color:'#444'}}>═</span>
+        <span style={{fontSize:'1.6rem',color:'#f472b6',fontWeight:700}}>✦</span>
+      </div>
+      <p style={{color:'#60a5fa',fontFamily:'Fredoka',fontSize:'1rem',marginBottom:'2rem'}}>"✦ 7 ♥" decodes to "A B C"!</p>
+      <button onClick={startTrain} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#38bdf8',color:'#050a12',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(56,189,248,0.4)'}}>
+        Crack the Code! 🔮
+      </button>
+    </div>
+  );
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];
+    if(t.type==='ab')return<ABTrial key={'ab'+idx} code={t.code} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+    if(t.type==='bc')return<BCTrial key={'bc'+idx} code={t.code} onDone={onTrain} num={idx+1} tot={trials.length}/>;
+  }
+  if(ph==='gate')return<Gate ts={ts} tm={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test'&&msgs.length>0)return<DecodeTrial key={'dec'+idx} msg={msgs[idx]} onDone={onTest} num={idx+1} tot={msgs.length}/>;
+  if(ph==='results')return<Results ts={ts} tm={TRAIN_MAX} xs={xs} xm={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

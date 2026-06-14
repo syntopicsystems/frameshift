@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrameShift — Silly Signals</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#0a0a0a;color:#f5f5f5;min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Fredoka',sans-serif}
+.frameshift-back{position:fixed;top:16px;left:16px;z-index:100;text-decoration:none;color:#a78bfa;font-family:'Fredoka',sans-serif;font-size:1.1rem;opacity:0.8;transition:opacity 0.2s}
+.frameshift-back:hover{opacity:1}
+.phase-tag{display:inline-block;padding:3px 14px;border-radius:10px;font-size:0.75rem;font-family:'Fredoka',sans-serif;font-weight:700;margin-bottom:10px}
+.tag-ab{background:rgba(167,139,250,0.18);color:#a78bfa;border:1px solid #a78bfa}
+.tag-bc{background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid #fbbf24}
+.tag-test{background:rgba(52,211,153,0.18);color:#34d399;border:1px solid #34d399}
+.light-red{width:110px;height:110px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #ff6b6b, #c0392b);box-shadow:0 0 40px rgba(220,50,50,0.8);margin:0 auto}
+.light-green{width:110px;height:110px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #6eff6e, #1a9e1a);box-shadow:0 0 40px rgba(50,200,50,0.8);margin:0 auto}
+.light-off{width:110px;height:110px;border-radius:50%;background:#333;margin:0 auto;opacity:0.4}
+.score-btn{border:none;border-radius:0.7rem;padding:0.7rem 1.4rem;font-family:'Fredoka',sans-serif;font-size:1.1rem;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<a href="index.html" class="frameshift-back">← FrameShift</a>
+<div id="root"></div>
+<script>
+window.FrameShift={STORAGE_KEY:"frameshift_progress",load:function(){try{var d=localStorage.getItem(this.STORAGE_KEY);return d?JSON.parse(d):{};}catch(e){return{};}},save:function(d){try{localStorage.setItem(this.STORAGE_KEY,JSON.stringify(d));}catch(e){}},saveSession:function(p,ts,tm,xs,xm,m){var d=this.load();if(!d[p])d[p]={sessions:[]};d[p].sessions.push({date:new Date().toISOString(),train:{score:ts,max:tm},test:xs!==null?{score:xs,max:xm}:null,mastery:m||false});if(m)d[p].mastered=true;this.save(d);}};
+var ac_ctx=null;function ac(){if(!ac_ctx)ac_ctx=new(window.AudioContext||window.webkitAudioContext)();return ac_ctx;}
+function playTone(t){try{const c=ac(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0.12,c.currentTime);if(t==='correct'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.1);o.frequency.setValueAtTime(784,c.currentTime+0.2);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.4);o.start();o.stop(c.currentTime+0.4);}else if(t==='incorrect'){o.frequency.setValueAtTime(200,c.currentTime);o.frequency.setValueAtTime(180,c.currentTime+0.15);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);o.start();o.stop(c.currentTime+0.3);}else if(t==='neutral'){o.frequency.setValueAtTime(440,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.35);o.start();o.stop(c.currentTime+0.35);}else if(t==='complete'){o.frequency.setValueAtTime(523,c.currentTime);o.frequency.setValueAtTime(659,c.currentTime+0.15);o.frequency.setValueAtTime(784,c.currentTime+0.3);o.frequency.setValueAtTime(1047,c.currentTime+0.45);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.7);o.start();o.stop(c.currentTime+0.7);}}catch(e){}}
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+function sh(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+// A = Red light / Green light; B = silly synonym; C = silly synonym of B
+const SIGNALS=[
+  {id:'stop',  A:'Red light',   B:'Pickle',   C:'Orange',   action:'STOP', color:'#ef4444'},
+  {id:'go',    A:'Green light', B:'Baseball', C:'Candy',    action:'GO',   color:'#22c55e'},
+  {id:'stop2', A:'Stop sign',   B:'Anchor',   C:'Brick',    action:'STOP', color:'#ef4444'},
+  {id:'go2',   A:'Go signal',   B:'Rocket',   C:'Cheetah',  action:'GO',   color:'#22c55e'},
+  {id:'stop3', A:'Brake',       B:'Turtle',   C:'Boulder',  action:'STOP', color:'#ef4444'},
+  {id:'go3',   A:'Race flag',   B:'Lightning',C:'Jet',      action:'GO',   color:'#22c55e'},
+];
+let SESSION=[];
+function pickSubset(arr,k){return sh([...arr]).slice(0,k);}
+
+// MCQ: A→B and B→C training (MCQ selection)
+// Test: caregiver plays game saying C words; child must stop/go correctly
+const ALL_B=SIGNALS.map(s=>s.B);
+const ALL_C=SIGNALS.map(s=>s.C);
+const TRAIN_MAX=12; // 2×AB + 2×BA + 2×BC + 2×CB (reinforce both directions)
+const TEST_MAX=6;  // caregiver-scored: 3 signals × 2 rounds
+
+function buildTrainTrials(){
+  const ab=SESSION.map(s=>({type:'ab',sig:s}));
+  const ba=SESSION.map(s=>({type:'ba',sig:s}));
+  const bc=SESSION.map(s=>({type:'bc',sig:s}));
+  const cb=SESSION.map(s=>({type:'cb',sig:s}));
+  return sh([...ab,...ba,...bc,...cb]);
+}
+
+function Welcome({onStart}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{display:'flex',gap:'1.5rem',marginBottom:'1.2rem',justifyContent:'center'}}>
+        <div className="light-red" style={{width:'70px',height:'70px'}}/>
+        <div className="light-green" style={{width:'70px',height:'70px'}}/>
+      </div>
+      <h1 style={{fontSize:'2.5rem',color:'#a78bfa',marginBottom:'0.5rem'}}>Silly Signals</h1>
+      <div style={{background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.3)',borderRadius:'1rem',padding:'1rem 1.5rem',marginBottom:'1.5rem',maxWidth:'400px'}}>
+        <p style={{fontSize:'0.9rem',color:'#a78bfa',fontFamily:'Fredoka',fontWeight:600,marginBottom:'0.3rem'}}>👋 Caregiver Note</p>
+        <p style={{fontSize:'0.9rem',color:'#f5f5f5',lineHeight:'1.5'}}>In the test phase, you'll call out silly words ("Pickle!", "Orange!") and score whether your child stops or goes correctly.</p>
+      </div>
+      <p style={{fontSize:'1.05rem',color:'#f5f5f5',marginBottom:'1.8rem',maxWidth:'420px',lineHeight:'1.6'}}>
+        "Red light" = "Pickle" = "Orange" — STOP!<br/>
+        "Green light" = "Baseball" = "Candy" — GO!<br/>
+        Learn the silly code, then play the game!
+      </p>
+      <button onClick={onStart} style={{padding:'1rem 3rem',fontSize:'1.4rem',fontFamily:'Fredoka',background:'#a78bfa',color:'#0a0a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,boxShadow:'0 4px 20px rgba(167,139,250,0.4)'}}>
+        Play Silly Signals! 🚦
+      </button>
+    </div>
+  );
+}
+
+function MCQTrial({question,prompt,options,correctId,colorA,onDone,num,tot,phaseTag,phaseLabel}){
+  const [fb,setFb]=useState(null);
+  const [opts]=useState(()=>sh([...options]));
+  const pick=(o)=>{const ok=o.id===correctId;setFb({ok,o});playTone(ok?'correct':'incorrect');setTimeout(()=>onDone(ok?1:0),1500);};
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Training — {num} / {tot}</div>
+      <span className={`phase-tag ${phaseTag}`}>{phaseLabel}</span>
+      <p style={{fontSize:'2.5rem',color:colorA,fontFamily:'Fredoka',fontWeight:700,marginBottom:'0.3rem'}}>{question}</p>
+      <p style={{fontSize:'1.1rem',color:'#f5f5f5',marginBottom:'1.8rem'}}>{prompt}</p>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        {opts.map((o,i)=>{
+          let bg='rgba(167,139,250,0.07)',bd='2px solid rgba(167,139,250,0.28)';
+          if(fb){if(o.id===correctId){bg='rgba(52,211,153,0.15)';bd='2px solid #34d399';}
+            else if(fb.o.id===o.id&&!fb.ok){bg='rgba(248,113,113,0.12)';bd='2px solid #f87171';}}
+          return<button key={i} onClick={()=>!fb&&pick(o)} disabled={!!fb}
+            style={{background:bg,border:bd,borderRadius:'0.8rem',padding:'0.85rem 2.2rem',cursor:fb?'default':'pointer',
+              fontSize:'1.3rem',fontFamily:'Fredoka',color:'#f5f5f5',fontWeight:700}}>{o.label}</button>;
+        })}
+      </div>
+      {fb&&<p style={{fontSize:'1.1rem',fontFamily:'Fredoka',fontWeight:700,marginTop:'1rem',color:fb.ok?'#34d399':'#f87171'}}>{fb.ok?'✓ Correct!':'✗  Try again next time'}</p>}
+    </div>
+  );
+}
+
+// Test: caregiver says C word; scores child's physical stop/go
+function TestRound({round,onDone,num,tot}){
+  // round = array of {sig, cWord used}
+  const [idx,setIdx]=useState(0);
+  const [scores,setScores]=useState([]);
+
+  const score=(v)=>{
+    const ns=[...scores,v];
+    setScores(ns);
+    playTone('neutral');
+    if(idx<round.length-1){setTimeout(()=>setIdx(i=>i+1),800);}
+    else{setTimeout(()=>onDone(ns.reduce((a,b)=>a+b,0)),300);}
+  };
+
+  const item=round[idx];
+  const isStop=item.sig.id==='stop';
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{marginBottom:'0.4rem',color:'#888',fontSize:'0.85rem'}}>Test — {num} / {tot}</div>
+      <span className="phase-tag tag-test">Silly Signal → Action  ✨</span>
+
+      {/* Traffic light visual */}
+      <div style={{background:'#1a1a1a',borderRadius:'2rem',padding:'1rem 1.5rem',marginBottom:'1.5rem',display:'flex',flexDirection:'column',gap:'0.8rem',border:'3px solid #333'}}>
+        <div className={isStop?'light-red':'light-off'} style={{width:'80px',height:'80px'}}/>
+        <div className={!isStop?'light-green':'light-off'} style={{width:'80px',height:'80px'}}/>
+      </div>
+
+      <div style={{background:'rgba(167,139,250,0.1)',border:'2px solid rgba(167,139,250,0.3)',borderRadius:'1.2rem',padding:'1.2rem 2rem',marginBottom:'1.2rem',maxWidth:'360px'}}>
+        <p style={{fontSize:'0.85rem',color:'#a78bfa',fontFamily:'Fredoka',marginBottom:'0.4rem'}}>📢 Caregiver: call out</p>
+        <p style={{fontSize:'2.5rem',color:item.sig.color,fontFamily:'Fredoka',fontWeight:700}}>"{item.cWord}!"</p>
+      </div>
+
+      <div style={{background:'rgba(255,255,255,0.04)',borderRadius:'1rem',padding:'0.7rem 1.5rem',marginBottom:'1.5rem'}}>
+        <p style={{fontSize:'0.85rem',color:'#555',marginBottom:'0.2rem'}}>Expected response:</p>
+        <p style={{fontSize:'1.4rem',color:item.sig.color,fontFamily:'Fredoka',fontWeight:700}}>{item.sig.action}</p>
+      </div>
+
+      <div>
+        <p style={{color:'#aaa',fontSize:'0.9rem',marginBottom:'0.8rem'}}>Score child's response:</p>
+        <div style={{display:'flex',gap:'0.8rem',justifyContent:'center'}}>
+          <button className="score-btn" onClick={()=>score(1)} style={{background:'rgba(52,211,153,0.15)',color:'#34d399',border:'2px solid #34d399'}}>✅ Correct</button>
+          <button className="score-btn" onClick={()=>score(0)} style={{background:'rgba(248,113,113,0.1)',color:'#f87171',border:'2px solid #f87171'}}>❌ Incorrect</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Gate({trainScore,trainMax,onRetry,onAdvance}){
+  const pct=Math.round((trainScore/trainMax)*100),ok=pct>=70;
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'4rem',marginBottom:'1rem'}}>{ok?'⭐':'💪'}</div>
+      <h2 style={{fontSize:'1.8rem',color:'#a78bfa',marginBottom:'1rem'}}>Training Complete!</h2>
+      <p style={{color:'#f5f5f5',fontSize:'1.2rem'}}>{trainScore} / {trainMax} ({pct}%)</p>
+      <p style={{color:'#aaa',fontSize:'0.95rem',marginTop:'0.4rem'}}>{ok?'Time to play! The caregiver will call out the silly C-words. Stop or go!':'Let\'s review the signals!'}</p>
+      {ok?<button onClick={onAdvance} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#34d399',color:'#0a0a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Play the Game! 🚦</button>
+         :<button onClick={onRetry} style={{padding:'1rem 2.5rem',fontSize:'1.3rem',fontFamily:'Fredoka',background:'#a78bfa',color:'#0a0a0a',border:'none',borderRadius:'1rem',cursor:'pointer',fontWeight:700,marginTop:'1.5rem'}}>Try Again 🔄</button>}
+    </div>
+  );
+}
+
+function Results({trainScore,trainMax,testScore,testMax}){
+  const mastery=(testScore/testMax)>=0.7;
+  useEffect(()=>{
+    playTone('complete');
+    var _ts=trainScore,_xs=testScore,_m=mastery;
+    if(window.FrameShift)window.FrameShift.saveSession('p12t',_ts,trainMax,_xs,testMax,_m);
+  },[]);
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',textAlign:'center'}}>
+      <div style={{fontSize:'5rem',marginBottom:'1rem'}}>{mastery?'🏆':'🌟'}</div>
+      <h2 style={{fontSize:'2rem',color:'#a78bfa',marginBottom:'1.5rem'}}>Results</h2>
+      <div style={{background:'rgba(167,139,250,0.08)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'0.8rem',minWidth:'230px'}}>
+        <h3 style={{color:'#a78bfa',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Training (A↔B + B↔C)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{trainScore} / {trainMax}</p>
+      </div>
+      <div style={{background:'rgba(52,211,153,0.1)',borderRadius:'1rem',padding:'1.4rem 2rem',marginBottom:'1.4rem',minWidth:'230px'}}>
+        <h3 style={{color:'#34d399',fontFamily:'Fredoka',marginBottom:'0.3rem',fontSize:'1rem'}}>Game Test (C→A emergent!)</h3>
+        <p style={{fontSize:'1.4rem',fontFamily:'Fredoka',fontWeight:700}}>{testScore} / {testMax}</p>
+      </div>
+      {mastery&&<div style={{fontSize:'1.2rem',color:'#ffbe0b',fontFamily:'Fredoka',fontWeight:700,marginBottom:'1.2rem'}}>🎖️ MASTERY — Equivalence Achieved! 🎖️</div>}
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'#a78bfa',color:'#0a0a0a',border:'none',borderRadius:'0.8rem',cursor:'pointer',fontWeight:600}}>Play Again</button>
+        <a href="index.html" style={{padding:'0.8rem 2rem',fontSize:'1.1rem',fontFamily:'Fredoka',background:'rgba(255,255,255,0.08)',color:'#f5f5f5',border:'2px solid rgba(255,255,255,0.18)',borderRadius:'0.8rem',textDecoration:'none',display:'inline-block',fontWeight:600}}>← Back to FrameShift</a>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [ph,setPh]=useState('welcome');
+  const [trials,setTrials]=useState([]);
+  const [testRound,setTestRound]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [trainScore,setTrainScore]=useState(0);
+  const [testScore,setTestScore]=useState(0);
+
+  const startTrain=()=>{SESSION=pickSubset(SIGNALS,3);setTrials(buildTrainTrials());setIdx(0);setTrainScore(0);setPh('train');};
+  const startTest=()=>{
+    const round=sh([...SESSION,...SESSION].map(s=>({sig:s,cWord:s.C})));
+    setTestRound(round);setPh('test');
+  };
+
+  const onTrain=(s)=>{
+    setTrainScore(v=>v+s);
+    if(idx<trials.length-1)setTimeout(()=>setIdx(i=>i+1),300);
+    else setTimeout(()=>setPh('gate'),300);
+  };
+  const onTest=(s)=>{setTestScore(s);setPh('results');};
+
+  if(ph==='welcome')return<Welcome onStart={startTrain}/>;
+  if(ph==='train'&&trials.length>0){
+    const t=trials[idx];const sig=t.sig;
+    if(t.type==='ab')return<MCQTrial key={'ab'+idx}
+      question={sig.A} prompt={`"${sig.A}" means the same as…`}
+      options={SESSION.map(s=>({id:s.id,label:s.B}))} correctId={sig.id}
+      colorA={sig.color} onDone={onTrain} num={idx+1} tot={trials.length}
+      phaseTag="tag-ab" phaseLabel="Signal → Silly Word (A→B)"/>;
+    if(t.type==='ba')return<MCQTrial key={'ba'+idx}
+      question={sig.B} prompt={`"${sig.B}" means the same as…`}
+      options={SESSION.map(s=>({id:s.id,label:s.A}))} correctId={sig.id}
+      colorA="#a78bfa" onDone={onTrain} num={idx+1} tot={trials.length}
+      phaseTag="tag-ab" phaseLabel="Silly Word → Signal (B→A)"/>;
+    if(t.type==='bc')return<MCQTrial key={'bc'+idx}
+      question={sig.B} prompt={`"${sig.B}" means the same as…`}
+      options={SESSION.map(s=>({id:s.id,label:s.C}))} correctId={sig.id}
+      colorA="#fbbf24" onDone={onTrain} num={idx+1} tot={trials.length}
+      phaseTag="tag-bc" phaseLabel="Silly Word → Sillier Word (B→C)"/>;
+    if(t.type==='cb')return<MCQTrial key={'cb'+idx}
+      question={sig.C} prompt={`"${sig.C}" means the same as…`}
+      options={SESSION.map(s=>({id:s.id,label:s.B}))} correctId={sig.id}
+      colorA="#fbbf24" onDone={onTrain} num={idx+1} tot={trials.length}
+      phaseTag="tag-bc" phaseLabel="Sillier Word → Silly Word (C→B)"/>;
+  }
+  if(ph==='gate')return<Gate trainScore={trainScore} trainMax={TRAIN_MAX} onRetry={startTrain} onAdvance={startTest}/>;
+  if(ph==='test')return<TestRound round={testRound} onDone={onTest} num={1} tot={1}/>;
+  if(ph==='results')return<Results trainScore={trainScore} trainMax={TRAIN_MAX} testScore={testScore} testMax={TEST_MAX}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
